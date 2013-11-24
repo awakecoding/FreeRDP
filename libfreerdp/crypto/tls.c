@@ -360,6 +360,9 @@ BOOL tls_accept(rdpTls* tls, const char* cert_file, const char* privatekey_file)
 
 BOOL tls_disconnect(rdpTls* tls)
 {
+	if (!tls)
+		return FALSE;
+
 	if (tls->ssl)
 		SSL_shutdown(tls->ssl);
 
@@ -397,7 +400,7 @@ int tls_read(rdpTls* tls, BYTE* data, int length)
 				break;
 
 			case SSL_ERROR_SYSCALL:
-				if (errno == EAGAIN)
+				if ((errno == EAGAIN) || (errno == 0))
 				{
 					status = 0;
 				}
@@ -578,6 +581,58 @@ BOOL tls_verify_certificate(rdpTls* tls, CryptoCert cert, char* hostname)
 	BOOL hostname_match = FALSE;
 	BOOL verification_status = FALSE;
 	rdpCertificateData* certificate_data;
+
+	if (tls->settings->ExternalCertificateManagement)
+	{
+		BIO* bio;
+		int status;
+		int length;
+		int offset;
+		BYTE* pemCert;
+		freerdp* instance = (freerdp*) tls->settings->instance;
+
+		/**
+		 * Don't manage certificates internally, leave it up entirely to the external client implementation
+		 */
+
+		bio = BIO_new(BIO_s_mem());
+
+		status = PEM_write_bio_X509(bio, cert->px509);
+
+		offset = 0;
+		length = 2048;
+		pemCert = (BYTE*) malloc(length + 1);
+
+		status = BIO_read(bio, pemCert, length);
+		offset += status;
+
+		while (offset >= length)
+		{
+			length *= 2;
+			pemCert = (BYTE*) realloc(pemCert, length + 1);
+
+			status = BIO_read(bio, &pemCert[offset], length);
+
+			if (status < 0)
+				break;
+
+			offset += status;
+		}
+
+		length = offset;
+		pemCert[length] = '\0';
+
+		status = -1;
+
+		if (instance->VerifyX509Certificate)
+		{
+			status = instance->VerifyX509Certificate(instance, pemCert, length, 0);
+		}
+
+		free(pemCert);
+
+		return (status < 0) ? FALSE : TRUE;
+	}
 
 	/* ignore certificate verification if user explicitly required it (discouraged) */
 	if (tls->settings->IgnoreCertificate)
