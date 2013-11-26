@@ -265,7 +265,7 @@ static void cliprdr_process_receive(rdpSvcPlugin* plugin, wStream* s)
 
 	DEBUG_CLIPRDR("msgType: %s (%d), msgFlags: %d dataLen: %d",
 		CB_MSG_TYPE_STRINGS[msgType], msgType, msgFlags, dataLen);
-
+	
 #ifdef WITH_DEBUG_CLIPRDR
 	winpr_HexDump(Stream_Buffer(s), dataLen + 8);
 #endif
@@ -435,6 +435,7 @@ int cliprdr_client_format_data_request(CliprdrClientContext* context, CLIPRDR_FO
 	cliprdrPlugin* cliprdr = (cliprdrPlugin*) context->handle;
 
 	formatDataRequest->msgType = CB_FORMAT_DATA_REQUEST;
+	formatDataRequest->msgFlags = 0;
 	formatDataRequest->dataLen = 4;
 
 	s = cliprdr_packet_new(formatDataRequest->msgType, formatDataRequest->msgFlags, formatDataRequest->dataLen);
