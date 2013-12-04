@@ -24,6 +24,7 @@
 #cmakedefine HAVE_TIMERFD_H
 #cmakedefine HAVE_TM_GMTOFF
 #cmakedefine HAVE_AIO_H
+#cmakedefine HAVE_PTHREAD_GNU_EXT
 
 
 /* Options */
@@ -43,6 +44,7 @@
 #cmakedefine WITH_PULSE
 #cmakedefine WITH_IOSAUDIO
 #cmakedefine WITH_OPENSLES
+#cmakedefine WITH_GSM
 
 /* Plugins */
 #cmakedefine STATIC_CHANNELS

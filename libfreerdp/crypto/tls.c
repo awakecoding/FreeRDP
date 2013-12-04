@@ -111,6 +111,7 @@ BOOL tls_connect(rdpTls* tls)
 	long options = 0;
 	int connection_status;
 	char *hostname;
+	int port;
 
 	tls->ctx = SSL_CTX_new(TLSv1_client_method());
 
@@ -214,11 +215,17 @@ BOOL tls_connect(rdpTls* tls)
 	}
 
 	if (tls->settings->GatewayEnabled)
+	{
 		hostname = tls->settings->GatewayHostname;
+		port = tls->settings->GatewayPort;
+	}
 	else
+	{
 		hostname = tls->settings->ServerHostname;
+		port = tls->settings->ServerPort;
+	}
 
-	if (!tls_verify_certificate(tls, cert, hostname))
+	if (!tls_verify_certificate(tls, cert, hostname, port))
 	{
 		fprintf(stderr, "tls_connect: certificate not trusted, aborting.\n");
 		tls_disconnect(tls);
@@ -360,6 +367,9 @@ BOOL tls_accept(rdpTls* tls, const char* cert_file, const char* privatekey_file)
 
 BOOL tls_disconnect(rdpTls* tls)
 {
+	if (!tls)
+		return FALSE;
+
 	if (tls->ssl)
 		SSL_shutdown(tls->ssl);
 
@@ -379,6 +389,11 @@ int tls_read(rdpTls* tls, BYTE* data, int length)
 
 	status = SSL_read(tls->ssl, data, length);
 
+	if (status == 0)
+	{
+		return -1; /* peer disconnected */
+	}
+
 	if (status <= 0)
 	{
 		error = SSL_get_error(tls->ssl, status);
@@ -397,7 +412,7 @@ int tls_read(rdpTls* tls, BYTE* data, int length)
 				break;
 
 			case SSL_ERROR_SYSCALL:
-				if (errno == EAGAIN)
+				if ((errno == EAGAIN) || (errno == 0))
 				{
 					status = 0;
 				}
@@ -565,7 +580,7 @@ BOOL tls_match_hostname(char *pattern, int pattern_length, char *hostname)
 	return FALSE;
 }
 
-BOOL tls_verify_certificate(rdpTls* tls, CryptoCert cert, char* hostname)
+BOOL tls_verify_certificate(rdpTls* tls, CryptoCert cert, char* hostname, int port)
 {
 	int match;
 	int index;
@@ -578,6 +593,87 @@ BOOL tls_verify_certificate(rdpTls* tls, CryptoCert cert, char* hostname)
 	BOOL hostname_match = FALSE;
 	BOOL verification_status = FALSE;
 	rdpCertificateData* certificate_data;
+
+	if (tls->settings->ExternalCertificateManagement)
+	{
+		BIO* bio;
+		int status;
+		int length;
+		int offset;
+		BYTE* pemCert;
+		freerdp* instance = (freerdp*) tls->settings->instance;
+
+		/**
+		 * Don't manage certificates internally, leave it up entirely to the external client implementation
+		 */
+
+		bio = BIO_new(BIO_s_mem());
+		
+		if (!bio)
+		{
+			fprintf(stderr, "tls_verify_certificate: BIO_new() failure\n");
+			return FALSE;
+		}
+
+		status = PEM_write_bio_X509(bio, cert->px509);
+
+		if (status < 0)
+		{
+			fprintf(stderr, "tls_verify_certificate: PEM_write_bio_X509 failure: %d\n", status);
+			return FALSE;
+		}
+		
+		offset = 0;
+		length = 2048;
+		pemCert = (BYTE*) malloc(length + 1);
+
+		status = BIO_read(bio, pemCert, length);
+		
+		if (status < 0)
+		{
+			fprintf(stderr, "tls_verify_certificate: failed to read certificate\n");
+			return FALSE;
+		}
+		
+		offset += status;
+
+		while (offset >= length)
+		{
+			length *= 2;
+			pemCert = (BYTE*) realloc(pemCert, length + 1);
+
+			status = BIO_read(bio, &pemCert[offset], length);
+
+			if (status < 0)
+				break;
+
+			offset += status;
+		}
+
+		if (status < 0)
+		{
+			fprintf(stderr, "tls_verify_certificate: failed to read certificate\n");
+			return FALSE;
+		}
+		
+		length = offset;
+		pemCert[length] = '\0';
+
+		status = -1;
+		
+		if (instance->VerifyX509Certificate)
+		{
+			status = instance->VerifyX509Certificate(instance, pemCert, length, hostname, port, 0);
+		}
+		
+		fprintf(stderr, "VerifyX509Certificate: (length = %d) status: %d\n%s\n",
+			length, status, pemCert);
+
+		free(pemCert);
+		BIO_free(bio);
+
+		return (status < 0) ? FALSE : TRUE;
+	}
 
 	/* ignore certificate verification if user explicitly required it (discouraged) */
 	if (tls->settings->IgnoreCertificate)
