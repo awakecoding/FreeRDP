@@ -154,19 +154,16 @@ int freerdp_client_settings_parse_connection_file_buffer(rdpSettings* settings, 
 int freerdp_client_settings_write_connection_file(const rdpSettings* settings, const char* filename, BOOL unicode)
 {
 	rdpFile* file;
-	int status = -1;
 
 	file = freerdp_client_rdp_file_new();
 
-	if (freerdp_client_populate_rdp_file_from_settings(file, settings))
-	{
-		if (freerdp_client_write_rdp_file(file, filename, unicode))
-		{
-			status = 0;
-		}
-	}
+	if (!freerdp_client_populate_rdp_file_from_settings(file, settings))
+		return -1;
+
+	if (!freerdp_client_write_rdp_file(file, filename, unicode))
+		return -1;
 
 	freerdp_client_rdp_file_free(file);
 
-	return status;
+	return 0;
 }
