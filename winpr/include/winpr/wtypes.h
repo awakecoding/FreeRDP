@@ -55,7 +55,10 @@ typedef int BOOL;
 
 typedef BOOL *PBOOL, *LPBOOL;
 
-typedef unsigned char BYTE, *PBYTE, *LPBYTE;
+#ifndef XMD_H
+typedef unsigned char BYTE;
+#endif
+typedef unsigned char *PBYTE, *LPBYTE;
 typedef BYTE BOOLEAN, *PBOOLEAN;
 typedef unsigned short WCHAR, *PWCHAR;
 typedef WCHAR* BSTR;
@@ -88,9 +91,9 @@ typedef HANDLE HBITMAP;
 
 typedef DWORD HCALL;
 typedef int INT, *LPINT;
+#ifndef XMD_H
 typedef signed char INT8;
 typedef signed short INT16;
-#ifndef XMD_H
 typedef signed int INT32;
 typedef signed __int64 INT64;
 #endif
