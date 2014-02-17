@@ -72,6 +72,7 @@
 	int pasteboard_changecount;
 	int pasteboard_format;
 	int is_connected;
+    BOOL usesAppleKeyboard;
 }
 
 - (int)  rdpStart :(rdpContext*) rdp_context;
@@ -82,6 +83,7 @@
 - (void) releaseResources;
 
 @property (assign) int is_connected;
+@property (assign) BOOL usesAppleKeyboard;
 
 @end
 

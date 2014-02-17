@@ -122,6 +122,7 @@ struct rgba_data
 @implementation MRDPView
 
 @synthesize is_connected;
+@synthesize usesAppleKeyboard;
 
 - (int) rdpStart:(rdpContext*) rdp_context
 {
@@ -258,6 +259,7 @@ DWORD mac_client_thread(void* param)
 	if (self)
 	{
 		// Initialization code here.
+        self.usesAppleKeyboard = true;
 	}
 	
 	return self;
@@ -500,43 +502,15 @@ DWORD mac_client_thread(void* param)
 
 DWORD fixKeyCode(DWORD keyCode, unichar keyChar)
 {
-	/**
-	 * In 99% of cases, the given key code is truly keyboard independent.
-	 * This function handles the remaining 1% of edge cases.
-	 *
-	 * Hungarian Keyboard: This is 'QWERTZ' and not 'QWERTY'.
-	 * The '0' key is on the left of the '1' key, where '~' is on a US keyboard.
-	 * A special 'i' letter key with acute is found on the right of the left shift key.
-	 * On the hungarian keyboard, the 'i' key is at the left of the 'Y' key
-	 * Some international keyboards have a corresponding key which would be at
-	 * the left of the 'Z' key when using a QWERTY layout.
-	 *
-	 * The Apple Hungarian keyboard sends inverted key codes for the '0' and 'i' keys.
-	 * When using the US keyboard layout, key codes are left as-is (inverted).
-	 * When using the Hungarian keyboard layout, key codes are swapped (non-inverted).
-	 * This means that when using the Hungarian keyboard layout with a US keyboard,
-	 * the keys corresponding to '0' and 'i' will effectively be inverted.
-	 *
-	 * To fix the '0' and 'i' key inversion, we use the corresponding output character
-	 * provided by OS X and check for a character to key code mismatch: for instance,
-	 * when the output character is '0' for the key code corresponding to the 'i' key.
+	/*
+     * Apple keyboard invert the keycode 10 and 50. Undo the inversion to make sure Windows do the correct interpretation.
 	 */
 	
-	switch (keyChar)
-	{
-		case '0':
-		case 0x00A7: /* section sign */
-			if (keyCode == APPLE_VK_ISO_Section)
-				keyCode = APPLE_VK_ANSI_Grave;
-			break;
-			
-		case 0x00ED: /* latin small letter i with acute */
-		case 0x00CD: /* latin capital letter i with acute */
-			if (keyCode == APPLE_VK_ANSI_Grave)
-				keyCode = APPLE_VK_ISO_Section;
-			break;
-	}
-	
+    if (keyCode == APPLE_VK_ANSI_Grave)
+        keyCode = APPLE_VK_ISO_Section;
+    else if (keyCode == APPLE_VK_ISO_Section)
+        keyCode = APPLE_VK_ANSI_Grave;
+    
 	return keyCode;
 }
 
@@ -564,7 +538,10 @@ DWORD fixKeyCode(DWORD keyCode, unichar keyChar)
 	if ([characters length] > 0)
 	{
 		keyChar = [characters characterAtIndex:0];
-		keyCode = fixKeyCode(keyCode, keyChar);
+		if(self->usesAppleKeyboard)
+        {
+            keyCode = fixKeyCode(keyCode, keyChar);
+        }
 	}
 	
 	vkcode = GetVirtualKeyCodeFromKeycode(keyCode + 8, KEYCODE_TYPE_APPLE);
@@ -605,7 +582,10 @@ DWORD fixKeyCode(DWORD keyCode, unichar keyChar)
 	if ([characters length] > 0)
 	{
 		keyChar = [characters characterAtIndex:0];
-		keyCode = fixKeyCode(keyCode, keyChar);
+		if(self->usesAppleKeyboard)
+        {
+            keyCode = fixKeyCode(keyCode, keyChar);
+        }
 	}
 
 	vkcode = GetVirtualKeyCodeFromKeycode(keyCode + 8, KEYCODE_TYPE_APPLE);
