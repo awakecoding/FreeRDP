@@ -54,6 +54,7 @@
 #include <winpr/input.h>
 
 #include <freerdp/constants.h>
+#include <freerdp/locale/keyboard.h>
 
 #import "freerdp/freerdp.h"
 #import "freerdp/types.h"
@@ -500,16 +501,42 @@ DWORD mac_client_thread(void* param)
 	mf_scale_mouse_event(context, instance->input, PTR_FLAGS_MOVE, x, y);
 }
 
-DWORD fixKeyCode(DWORD keyCode, unichar keyChar)
+DWORD fixKeyCode(DWORD keyCode, uint keyboardLayoutId)
 {
 	/*
-     * Apple keyboard invert the keycode 10 and 50. Undo the inversion to make sure Windows do the correct interpretation.
-	 */
-	
-    if (keyCode == APPLE_VK_ANSI_Grave)
-        keyCode = APPLE_VK_ISO_Section;
-    else if (keyCode == APPLE_VK_ISO_Section)
-        keyCode = APPLE_VK_ANSI_Grave;
+     *
+     * Based on https://help.ubuntu.com/community/AppleKeyboard
+     * The key with code 10 and 50 are inverted when the keyboard is not english or invariant.
+     *
+     */
+    
+    switch(keyboardLayoutId)
+    {
+        case 0x0: // No keyboard layout selected
+        case 0x0000047F: // Invariant Keyboard
+        case KBD_US:
+        case KBD_CANADIAN_FRENCH: // Misnamed Keyboard for Canadian english
+        case 0x00000C09: // Australian English Keyboard
+        case 0x00002809: // Belize English Keyboard
+        case 0x00004009: // India English Keyboard
+        case KBD_IRISH:
+        case 0x00002009: // Jamaica English Keyboard
+        case 0x00001409: // New Zealand English Keyboard
+        case KBD_UNITED_KINGDOM:
+        case 0x00003409: // Philippines English Keyboard
+        case 0x00004809: // Singapore English Keyboard
+        case 0x00001C09: // South African English Keyboard
+        case 0x00002C09: // Trinidad English Keyboard
+        case 0x00003009: // Zimbabwe English Keyboard
+            break;
+            
+        default:
+            if (keyCode == APPLE_VK_ANSI_Grave)
+                keyCode = APPLE_VK_ISO_Section;
+            else if (keyCode == APPLE_VK_ISO_Section)
+                keyCode = APPLE_VK_ANSI_Grave;
+            break;
+    }
     
 	return keyCode;
 }
@@ -540,7 +567,7 @@ DWORD fixKeyCode(DWORD keyCode, unichar keyChar)
 		keyChar = [characters characterAtIndex:0];
 		if(self->usesAppleKeyboard)
         {
-            keyCode = fixKeyCode(keyCode, keyChar);
+            keyCode = fixKeyCode(keyCode, self->context->settings->KeyboardLayout);
         }
 	}
 	
@@ -584,7 +611,7 @@ DWORD fixKeyCode(DWORD keyCode, unichar keyChar)
 		keyChar = [characters characterAtIndex:0];
 		if(self->usesAppleKeyboard)
         {
-            keyCode = fixKeyCode(keyCode, keyChar);
+            keyCode = fixKeyCode(keyCode, self->context->settings->KeyboardLayout);
         }
 	}
 
