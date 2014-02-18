@@ -54,6 +54,7 @@
 #include <winpr/input.h>
 
 #include <freerdp/constants.h>
+#include <freerdp/locale/keyboard.h>
 
 #import "freerdp/freerdp.h"
 #import "freerdp/types.h"
@@ -122,6 +123,7 @@ struct rgba_data
 @implementation MRDPView
 
 @synthesize is_connected;
+@synthesize usesAppleKeyboard;
 
 - (int) rdpStart:(rdpContext*) rdp_context
 {
@@ -258,6 +260,7 @@ DWORD mac_client_thread(void* param)
 	if (self)
 	{
 		// Initialization code here.
+        self.usesAppleKeyboard = true;
 	}
 	
 	return self;
@@ -498,45 +501,43 @@ DWORD mac_client_thread(void* param)
 	mf_scale_mouse_event(context, instance->input, PTR_FLAGS_MOVE, x, y);
 }
 
-DWORD fixKeyCode(DWORD keyCode, unichar keyChar)
+DWORD fixKeyCode(DWORD keyCode, uint keyboardLayoutId)
 {
-	/**
-	 * In 99% of cases, the given key code is truly keyboard independent.
-	 * This function handles the remaining 1% of edge cases.
-	 *
-	 * Hungarian Keyboard: This is 'QWERTZ' and not 'QWERTY'.
-	 * The '0' key is on the left of the '1' key, where '~' is on a US keyboard.
-	 * A special 'i' letter key with acute is found on the right of the left shift key.
-	 * On the hungarian keyboard, the 'i' key is at the left of the 'Y' key
-	 * Some international keyboards have a corresponding key which would be at
-	 * the left of the 'Z' key when using a QWERTY layout.
-	 *
-	 * The Apple Hungarian keyboard sends inverted key codes for the '0' and 'i' keys.
-	 * When using the US keyboard layout, key codes are left as-is (inverted).
-	 * When using the Hungarian keyboard layout, key codes are swapped (non-inverted).
-	 * This means that when using the Hungarian keyboard layout with a US keyboard,
-	 * the keys corresponding to '0' and 'i' will effectively be inverted.
-	 *
-	 * To fix the '0' and 'i' key inversion, we use the corresponding output character
-	 * provided by OS X and check for a character to key code mismatch: for instance,
-	 * when the output character is '0' for the key code corresponding to the 'i' key.
-	 */
-	
-	switch (keyChar)
-	{
-		case '0':
-		case 0x00A7: /* section sign */
-			if (keyCode == APPLE_VK_ISO_Section)
-				keyCode = APPLE_VK_ANSI_Grave;
-			break;
-			
-		case 0x00ED: /* latin small letter i with acute */
-		case 0x00CD: /* latin capital letter i with acute */
-			if (keyCode == APPLE_VK_ANSI_Grave)
-				keyCode = APPLE_VK_ISO_Section;
-			break;
-	}
-	
+	/*
+     *
+     * Based on https://help.ubuntu.com/community/AppleKeyboard
+     * The key with code 10 and 50 are inverted when the keyboard is not english or invariant.
+     *
+     */
+    
+    switch(keyboardLayoutId)
+    {
+        case 0x0: // No keyboard layout selected
+        case 0x0000047F: // Invariant Keyboard
+        case KBD_US:
+        case KBD_CANADIAN_FRENCH: // Misnamed Keyboard for Canadian english
+        case 0x00000C09: // Australian English Keyboard
+        case 0x00002809: // Belize English Keyboard
+        case 0x00004009: // India English Keyboard
+        case KBD_IRISH:
+        case 0x00002009: // Jamaica English Keyboard
+        case 0x00001409: // New Zealand English Keyboard
+        case KBD_UNITED_KINGDOM:
+        case 0x00003409: // Philippines English Keyboard
+        case 0x00004809: // Singapore English Keyboard
+        case 0x00001C09: // South African English Keyboard
+        case 0x00002C09: // Trinidad English Keyboard
+        case 0x00003009: // Zimbabwe English Keyboard
+            break;
+            
+        default:
+            if (keyCode == APPLE_VK_ANSI_Grave)
+                keyCode = APPLE_VK_ISO_Section;
+            else if (keyCode == APPLE_VK_ISO_Section)
+                keyCode = APPLE_VK_ANSI_Grave;
+            break;
+    }
+    
 	return keyCode;
 }
 
@@ -564,7 +565,10 @@ DWORD fixKeyCode(DWORD keyCode, unichar keyChar)
 	if ([characters length] > 0)
 	{
 		keyChar = [characters characterAtIndex:0];
-		keyCode = fixKeyCode(keyCode, keyChar);
+		if(self->usesAppleKeyboard)
+        {
+            keyCode = fixKeyCode(keyCode, self->context->settings->KeyboardLayout);
+        }
 	}
 	
 	vkcode = GetVirtualKeyCodeFromKeycode(keyCode + 8, KEYCODE_TYPE_APPLE);
@@ -605,7 +609,10 @@ DWORD fixKeyCode(DWORD keyCode, unichar keyChar)
 	if ([characters length] > 0)
 	{
 		keyChar = [characters characterAtIndex:0];
-		keyCode = fixKeyCode(keyCode, keyChar);
+		if(self->usesAppleKeyboard)
+        {
+            keyCode = fixKeyCode(keyCode, self->context->settings->KeyboardLayout);
+        }
 	}
 
 	vkcode = GetVirtualKeyCodeFromKeycode(keyCode + 8, KEYCODE_TYPE_APPLE);
