@@ -601,16 +601,7 @@ int makecert_context_process(MAKECERT_CONTEXT* context, int argc, char** argv)
 
 MAKECERT_CONTEXT* makecert_context_new()
 {
-	MAKECERT_CONTEXT* context = NULL;
-
-	context = (MAKECERT_CONTEXT*) malloc(sizeof(MAKECERT_CONTEXT));
-
-	if (context)
-	{
-		ZeroMemory(context, sizeof(MAKECERT_CONTEXT));
-	}
-
-	return context;
+	return (MAKECERT_CONTEXT *)calloc(1, sizeof(MAKECERT_CONTEXT));
 }
 
 void makecert_context_free(MAKECERT_CONTEXT* context)

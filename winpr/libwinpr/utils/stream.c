@@ -72,7 +72,14 @@ wStream* Stream_New(BYTE* buffer, size_t size)
 		if (buffer)
 			s->buffer = buffer;
 		else
+		{
 			s->buffer = (BYTE*) malloc(size);
+			if (!s->buffer)
+			{
+				free(s);
+				return 0;
+			}
+		}
 
 		s->pointer = s->buffer;
 		s->capacity = size;

@@ -431,9 +431,7 @@ struct rdp_mppc_enc* mppc_enc_new(int protocol_type)
 {
 	struct rdp_mppc_enc* enc;
 
-	enc = (struct rdp_mppc_enc*) malloc(sizeof(struct rdp_mppc_enc));
-	ZeroMemory(enc, sizeof(struct rdp_mppc_enc));
-
+	enc = (struct rdp_mppc_enc *)calloc(1, sizeof(struct rdp_mppc_enc));
 	if (enc == NULL)
 		return NULL;
 
@@ -455,38 +453,28 @@ struct rdp_mppc_enc* mppc_enc_new(int protocol_type)
 	}
 
 	enc->first_pkt = 1;
-	enc->historyBuffer = (char*) malloc(enc->buf_len);
-	ZeroMemory(enc->historyBuffer, enc->buf_len);
+	enc->historyBuffer = (char *)calloc(1, enc->buf_len);
+	if (!enc->historyBuffer)
+		goto out_enc;
 
-	if (enc->historyBuffer == NULL)
-	{
-		free(enc);
-		return NULL;
-	}
-
-	enc->outputBufferPlus = (char*) malloc(enc->buf_len + 64);
-	ZeroMemory(enc->outputBufferPlus, enc->buf_len + 64);
-
-	if (enc->outputBufferPlus == NULL)
-	{
-		free(enc->historyBuffer);
-		free(enc);
-		return NULL;
-	}
+	enc->outputBufferPlus = (char *)calloc(1, enc->buf_len + 64);
+	if (!enc->outputBufferPlus)
+		goto out_history_buffer;
 
 	enc->outputBuffer = enc->outputBufferPlus + 64;
-	enc->hash_table = (UINT16*) malloc(enc->buf_len * 2);
-	ZeroMemory(enc->hash_table, enc->buf_len * 2);
-
-	if (enc->hash_table == NULL)
-	{
-		free(enc->historyBuffer);
-		free(enc->outputBufferPlus);
-		free(enc);
-		return NULL;
-	}
-
+	enc->hash_table = (UINT16 *)calloc(enc->buf_len, 2);
+	if (!enc->hash_table)
+		goto out_output_buffer_plus;
 	return enc;
+
+
+out_output_buffer_plus:
+	free(enc->outputBufferPlus);
+out_history_buffer:
+	free(enc->historyBuffer);
+out_enc:
+	free(enc);
+	return 0;
 }
 
 /**
@@ -529,9 +517,12 @@ BOOL compress_rdp(struct rdp_mppc_enc* enc, BYTE* srcData, int len)
 		case PROTO_RDP_50:
 			return compress_rdp_5(enc, srcData, len);
 			break;
+		default:
+			fprintf(stderr, "%s: unknown compression %d\n", __FUNCTION__, enc->protocol_type);
+			return FALSE;
+
 	}
 
-	return FALSE;
 }
 
 /**
@@ -547,6 +538,7 @@ BOOL compress_rdp(struct rdp_mppc_enc* enc, BYTE* srcData, int len)
 BOOL compress_rdp_4(struct rdp_mppc_enc* enc, BYTE* srcData, int len)
 {
 	/* RDP 4.0 encoding not yet implemented */
+	fprintf(stderr, "%s: not supported\n", __FUNCTION__);
 	return FALSE;
 }
 
