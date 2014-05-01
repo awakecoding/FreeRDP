@@ -66,6 +66,7 @@ struct rdp_ntlm
 	SEC_WINNT_AUTH_IDENTITY identity;
 	SecPkgContext_Sizes ContextSizes;
 	SecPkgContext_Bindings* Bindings;
+	wLog* log;
 };
 
 struct rdp_ntlm_http

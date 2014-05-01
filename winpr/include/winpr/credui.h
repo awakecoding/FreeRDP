@@ -32,6 +32,60 @@
 
 #include <wincred.h>
 
+typedef enum _KERB_LOGON_SUBMIT_TYPE {
+	KerbInteractiveLogon = 2,
+	KerbSmartCardLogon = 6,
+	KerbWorkstationUnlockLogon = 7,
+	KerbSmartCardUnlockLogon = 8,
+	KerbProxyLogon = 9,
+	KerbTicketLogon = 10,
+	KerbTicketUnlockLogon = 11,
+	//#if (_WIN32_WINNT >= 0x0501) -- Disabled until IIS fixes their target version.
+	KerbS4ULogon = 12,
+	//#endif
+#if (_WIN32_WINNT >= 0x0600)
+	KerbCertificateLogon = 13,
+	KerbCertificateS4ULogon = 14,
+	KerbCertificateUnlockLogon = 15,
+#endif
+#if (_WIN32_WINNT >= 0x0602)
+	KerbNoElevationLogon = 83,
+#endif
+} KERB_LOGON_SUBMIT_TYPE, *PKERB_LOGON_SUBMIT_TYPE;
+
+typedef struct _KERB_CERTIFICATE_LOGON {
+	KERB_LOGON_SUBMIT_TYPE MessageType; // KerbCertificateLogon
+	UNICODE_STRING DomainName; // OPTIONAL, if supplied, used to locate the account forest
+	UNICODE_STRING UserName;   // OPTIONAL, if supplied, used to locate the account
+	UNICODE_STRING Pin;
+	ULONG Flags;               // additional flags
+	ULONG CspDataLength;
+	PUCHAR CspData;            // contains the smartcard CSP data
+} KERB_CERTIFICATE_LOGON, *PKERB_CERTIFICATE_LOGON;
+
+typedef struct _KERB_SMARTCARD_CSP_INFO {
+	DWORD dwCspInfoLen;
+	DWORD MessageType;
+	union {
+		PVOID   ContextInformation;
+		ULONG64 SpaceHolderForWow64;
+	};
+	DWORD flags;
+	DWORD KeySpec;
+	ULONG nCardNameOffset;
+	ULONG nReaderNameOffset;
+	ULONG nContainerNameOffset;
+	ULONG nCSPNameOffset;
+	TCHAR bBuffer;
+} KERB_SMARTCARD_CSP_INFO, *PKERB_SMARTCARD_CSP_INFO;
+
+typedef struct _KERB_INTERACTIVE_LOGON {
+	KERB_LOGON_SUBMIT_TYPE MessageType;
+	UNICODE_STRING LogonDomainName;
+	UNICODE_STRING UserName;
+	UNICODE_STRING Password;
+} KERB_INTERACTIVE_LOGON, *PKERB_INTERACTIVE_LOGON;
+
 #else
 
 #define CREDUI_MAX_MESSAGE_LENGTH			32767

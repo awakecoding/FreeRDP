@@ -165,7 +165,7 @@ void smartcard_process_irp(SMARTCARD_DEVICE* smartcard, IRP* irp)
 	}
 	else
 	{
-		fprintf(stderr, "Unexpected SmartCard IRP: MajorFunction 0x%08X MinorFunction: 0x%08X",
+		WLog_Print(smartcard->log, WLOG_ERROR, "Unexpected SmartCard IRP: MajorFunction 0x%08X MinorFunction: 0x%08X",
 				irp->MajorFunction, irp->MinorFunction);
 		irp->IoStatus = STATUS_NOT_SUPPORTED;
 		smartcard_complete_irp(smartcard, irp);

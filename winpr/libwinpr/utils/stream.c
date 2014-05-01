@@ -96,5 +96,6 @@ void Stream_Free(wStream* s, BOOL bFreeBuffer)
 		}
 
 		free(s);
+		s = NULL;
 	}
 }

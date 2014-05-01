@@ -67,8 +67,34 @@ void WLog_FileAppender_SetOutputFilePath(wLog* log, wLogFileAppender* appender, 
 int WLog_FileAppender_Open(wLog* log, wLogFileAppender* appender)
 {
 	DWORD ProcessId;
+	DWORD nSize = 0;
 
-	ProcessId = GetCurrentProcessId();
+	nSize = GetEnvironmentVariableA("WLOG_FILE", NULL, 0);
+
+	if (nSize)
+	{
+		appender->FileName = (LPSTR) malloc(nSize);
+		nSize = GetEnvironmentVariableA("WLOG_FILE", appender->FileName, nSize);
+
+	}
+	else
+	{
+		ProcessId = GetCurrentProcessId();
+
+		if (!appender->FileName)
+		{
+			appender->FileName = (char*) malloc(256);
+			sprintf_s(appender->FileName, 256, "%u.log", (unsigned int) ProcessId);
+		}
+
+	}
+
+	nSize = GetEnvironmentVariableA("WLOG_PATH", NULL, 0);
+	if (nSize)
+	{
+		appender->FilePath = (char*) malloc(nSize);
+		nSize = GetEnvironmentVariableA("WLOG_PATH", appender->FilePath, nSize);
+	}
 
 	if (!appender->FilePath)
 	{
@@ -79,12 +105,6 @@ int WLog_FileAppender_Open(wLog* log, wLogFileAppender* appender)
 	{
 		CreateDirectoryA(appender->FilePath, 0);
 		UnixChangeFileMode(appender->FilePath, 0xFFFF);
-	}
-
-	if (!appender->FileName)
-	{
-		appender->FileName = (char*) malloc(256);
-		sprintf_s(appender->FileName, 256, "%u.log", (unsigned int) ProcessId);
 	}
 
 	if (!appender->FullFileName)
@@ -141,8 +161,15 @@ int WLog_FileAppender_WriteDataMessage(wLog* log, wLogFileAppender* appender, wL
 	int DataId;
 	char* FullFileName;
 
-	DataId = g_DataId++;
-	FullFileName = WLog_Message_GetOutputFileName(DataId, "dat");
+	if (message->FormatString && ! strchr(message->FormatString, '%'))
+	{
+		FullFileName = GetCombinedPath(appender->FilePath, message->FormatString);
+	}
+	else
+	{
+		DataId = g_DataId++;
+		FullFileName = WLog_Message_GetOutputFileName(DataId, "dat");
+	}
 
 	WLog_DataMessage_Write(FullFileName, message->Data, message->Length);
 
