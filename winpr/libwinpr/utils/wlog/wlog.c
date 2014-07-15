@@ -23,7 +23,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <stdarg.h>
 
 #include <winpr/crt.h>
 #include <winpr/print.h>
@@ -319,7 +318,7 @@ int WLog_ParseFilters()
 {
 	char* p;
 	char* env;
-	int count;
+	DWORD count;
 	DWORD nSize;
 	int status;
 	char** strs;

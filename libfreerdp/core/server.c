@@ -42,6 +42,15 @@
 #define DEBUG_DVC(fmt, ...) DEBUG_NULL(fmt, ## __VA_ARGS__)
 #endif
 
+struct _wtsChannelMessage
+{
+	UINT16 channelId;
+	UINT16 reserved;
+	UINT32 length;
+	UINT32 offset;
+};
+typedef struct _wtsChannelMessage wtsChannelMessage;
+
 static DWORD g_SessionId = 1;
 static wHashTable* g_ServerHandles = NULL;
 
@@ -75,15 +84,16 @@ static rdpPeerChannel* wts_get_dvc_channel_by_id(WTSVirtualChannelManager* vcm, 
 static void wts_queue_receive_data(rdpPeerChannel* channel, const BYTE* Buffer, UINT32 Length)
 {
 	BYTE* buffer;
-	UINT32 length;
-	UINT16 channelId;
+	wtsChannelMessage* messageCtx;
 
-	length = Length;
-	buffer = (BYTE*) malloc(length);
-	CopyMemory(buffer, Buffer, length);
-	channelId = channel->channelId;
+	messageCtx = (wtsChannelMessage*) malloc(sizeof(wtsChannelMessage) + Length);
+	messageCtx->channelId = channel->channelId;
+	messageCtx->length = Length;
+	messageCtx->offset = 0;
+	buffer = (BYTE*) (messageCtx + 1);
+	CopyMemory(buffer, Buffer, Length);
 
-	MessageQueue_Post(channel->queue, (void*) (UINT_PTR) channelId, 0, (void*) buffer, (void*) (UINT_PTR) length);
+	MessageQueue_Post(channel->queue, messageCtx, 0, NULL, NULL);
 }
 
 static void wts_queue_send_item(rdpPeerChannel* channel, BYTE* Buffer, UINT32 Length)
@@ -427,9 +437,11 @@ BOOL WTSVirtualChannelManagerCheckFileDescriptor(HANDLE hServer)
 
 		if (channel)
 		{
+			ULONG written;
+
 			vcm->drdynvc_channel = channel;
 			dynvc_caps = 0x00010050; /* DYNVC_CAPS_VERSION1 (4 bytes) */
-			WTSVirtualChannelWrite(channel, (PCHAR) &dynvc_caps, sizeof(dynvc_caps), NULL);
+			WTSVirtualChannelWrite(channel, (PCHAR) &dynvc_caps, sizeof(dynvc_caps), &written);
 		}
 	}
 
@@ -916,6 +928,7 @@ HANDLE WINAPI FreeRDP_WTSVirtualChannelOpenEx(DWORD SessionId, LPSTR pVirtualNam
 	BOOL joined = FALSE;
 	freerdp_peer* client;
 	rdpPeerChannel* channel;
+	ULONG written;
 	WTSVirtualChannelManager* vcm;
 
 	if (SessionId == WTS_CURRENT_SESSION)
@@ -968,7 +981,7 @@ HANDLE WINAPI FreeRDP_WTSVirtualChannelOpenEx(DWORD SessionId, LPSTR pVirtualNam
 
 	s = Stream_New(NULL, 64);
 	wts_write_drdynvc_create_request(s, channel->channelId, pVirtualName);
-	WTSVirtualChannelWrite(vcm->drdynvc_channel, (PCHAR) Stream_Buffer(s), Stream_GetPosition(s), NULL);
+	WTSVirtualChannelWrite(vcm->drdynvc_channel, (PCHAR) Stream_Buffer(s), Stream_GetPosition(s), &written);
 	Stream_Free(s, TRUE);
 
 	return channel;
@@ -997,9 +1010,11 @@ BOOL WINAPI FreeRDP_WTSVirtualChannelClose(HANDLE hChannelHandle)
 
 			if (channel->dvc_open_state == DVC_OPEN_STATE_SUCCEEDED)
 			{
+				ULONG written;
+
 				s = Stream_New(NULL, 8);
 				wts_write_drdynvc_header(s, CLOSE_REQUEST_PDU, channel->channelId);
-				WTSVirtualChannelWrite(vcm->drdynvc_channel, (PCHAR) Stream_Buffer(s), Stream_GetPosition(s), NULL);
+				WTSVirtualChannelWrite(vcm->drdynvc_channel, (PCHAR) Stream_Buffer(s), Stream_GetPosition(s), &written);
 				Stream_Free(s, TRUE);
 			}
 		}
@@ -1022,28 +1037,35 @@ BOOL WINAPI FreeRDP_WTSVirtualChannelClose(HANDLE hChannelHandle)
 BOOL WINAPI FreeRDP_WTSVirtualChannelRead(HANDLE hChannelHandle, ULONG TimeOut, PCHAR Buffer, ULONG BufferSize, PULONG pBytesRead)
 {
 	BYTE* buffer;
-	UINT32 length;
-	UINT16 channelId;
 	wMessage message;
+	wtsChannelMessage* messageCtx;
 	rdpPeerChannel* channel = (rdpPeerChannel*) hChannelHandle;
 
-	if (!MessageQueue_Peek(channel->queue, &message, TRUE))
+	if (!MessageQueue_Peek(channel->queue, &message, FALSE))
 	{
+		SetLastError(ERROR_NO_DATA);
 		*pBytesRead = 0;
-		return TRUE;
+		return FALSE;
 	}
 
-	channelId = (UINT16) (UINT_PTR) message.context;
-	buffer = (BYTE*) message.wParam;
-	length = (UINT32) (UINT_PTR) message.lParam;
+	messageCtx = (wtsChannelMessage*) (UINT_PTR) message.context;
+	buffer = (BYTE*) (messageCtx + 1);
 
-	*pBytesRead = length;
+	*pBytesRead = messageCtx->length - messageCtx->offset;
+	if (Buffer == NULL || BufferSize == 0)
+	{
+		return TRUE;
+	}
+	if (*pBytesRead > BufferSize)
+		*pBytesRead = BufferSize;
 
-	if (length > BufferSize)
-		return FALSE;
-
-	CopyMemory(Buffer, buffer, length);
-	free(buffer);
+	CopyMemory(Buffer, buffer + messageCtx->offset, *pBytesRead);
+	messageCtx->offset += *pBytesRead;
+	if (messageCtx->offset >= messageCtx->length)
+	{
+		MessageQueue_Peek(channel->queue, &message, TRUE);
+		free(messageCtx);
+	}
 
 	return TRUE;
 }

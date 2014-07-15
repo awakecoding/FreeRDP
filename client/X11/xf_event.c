@@ -30,6 +30,7 @@
 #include "xf_window.h"
 #include "xf_cliprdr.h"
 #include "xf_input.h"
+#include "xf_gfx.h"
 
 #include "xf_event.h"
 #include "xf_input.h"
@@ -189,7 +190,13 @@ static BOOL xf_event_Expose(xfContext* xfc, XEvent* event, BOOL app)
 	y = event->xexpose.y;
 	w = event->xexpose.width;
 	h = event->xexpose.height;
-	
+
+	if (xfc->gfx)
+	{
+		xf_OutputExpose(xfc, x, y, w, h);
+		return TRUE;
+	}
+
 	if (!app)
 	{
 		if ((xfc->settings->ScalingFactor != 1.0) || (xfc->offset_x) || (xfc->offset_y))
@@ -199,9 +206,7 @@ static BOOL xf_event_Expose(xfContext* xfc, XEvent* event, BOOL app)
 		}
 		else
 		{
-			XCopyArea(xfc->display, xfc->primary,
-				  xfc->window->handle, xfc->gc, x, y, w,
-				  h, x, y);
+			XCopyArea(xfc->display, xfc->primary, xfc->window->handle, xfc->gc, x, y, w, h, x, y);
 		}
 	}
 	else
@@ -540,9 +545,6 @@ static BOOL xf_event_FocusIn(xfContext* xfc, XEvent* event, BOOL app)
 
 	xf_keyboard_focus_in(xfc);
 
-	if (!app)
-		xf_cliprdr_check_owner(xfc);
-
 	return TRUE;
 }
 
@@ -788,39 +790,6 @@ static BOOL xf_event_UnmapNotify(xfContext* xfc, XEvent* event, BOOL app)
 	return TRUE;
 }
 
-static BOOL xf_event_SelectionNotify(xfContext* xfc, XEvent* event, BOOL app)
-{
-	if (!app)
-	{
-		if (xf_cliprdr_process_selection_notify(xfc, event))
-			return TRUE;
-	}
-
-	return TRUE;
-}
-
-static BOOL xf_event_SelectionRequest(xfContext* xfc, XEvent* event, BOOL app)
-{
-	if (!app)
-	{
-		if (xf_cliprdr_process_selection_request(xfc, event))
-			return TRUE;
-	}
-
-	return TRUE;
-}
-
-static BOOL xf_event_SelectionClear(xfContext* xfc, XEvent* event, BOOL app)
-{
-	if (!app)
-	{
-		if (xf_cliprdr_process_selection_clear(xfc, event))
-			return TRUE;
-	}
-
-	return TRUE;
-}
-
 static BOOL xf_event_PropertyNotify(xfContext* xfc, XEvent* event, BOOL app)
 {
 	/*
@@ -917,11 +886,6 @@ static BOOL xf_event_PropertyNotify(xfContext* xfc, XEvent* event, BOOL app)
 	                }
                }       
         }
-	else
-	{
-		if (xf_cliprdr_process_property_notify(xfc, event))
-			return TRUE;
-	}
 
 	return TRUE;
 }
@@ -1107,22 +1071,15 @@ BOOL xf_event_process(freerdp* instance, XEvent* event)
 			status = xf_event_ClientMessage(xfc, event, xfc->remote_app);
 			break;
 
-		case SelectionNotify:
-			status = xf_event_SelectionNotify(xfc, event, xfc->remote_app);
-			break;
-
-		case SelectionRequest:
-			status = xf_event_SelectionRequest(xfc, event, xfc->remote_app);
-			break;
-
-		case SelectionClear:
-			status = xf_event_SelectionClear(xfc, event, xfc->remote_app);
-			break;
-
 		case PropertyNotify:
 			status = xf_event_PropertyNotify(xfc, event, xfc->remote_app);
 			break;
 
+	}
+
+	if (!xfc->remote_app)
+	{
+		xf_cliprdr_handle_xevent(xfc, event);
 	}
 
 	xf_input_handle_event(xfc, event);

@@ -37,6 +37,8 @@ WINPR_API void winpr_HexDump(const BYTE* data, int length);
 WINPR_API void winpr_CArrayDump(const BYTE* data, int length, int width);
 
 WINPR_API char* winpr_BinToHexString(const BYTE* data, int length, BOOL space);
+WINPR_API void winpr_HexDumpf(BYTE* data, int length, const char* format, ...);
+WINPR_API int winpr_HexDumpToBuffer(char* buffer, size_t* count, const BYTE* data, int length);
 
 WINPR_API int wprintfx(const char *fmt, ...);
 WINPR_API int wvprintfx(const char *fmt, va_list args);

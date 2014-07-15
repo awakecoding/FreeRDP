@@ -30,9 +30,9 @@
 
 #include <winpr/crt.h>
 #include <winpr/synch.h>
+
 #include <freerdp/channels/wtsvc.h>
 #include <freerdp/channels/channels.h>
-
 
 #include <freerdp/constants.h>
 #include <freerdp/utils/tcp.h>
@@ -40,6 +40,7 @@
 
 #include "sf_audin.h"
 #include "sf_rdpsnd.h"
+#include "sf_encomsp.h"
 
 #include "sfreerdp.h"
 
@@ -95,6 +96,9 @@ void test_peer_context_free(freerdp_peer* client, testPeerContext* context)
 
 		if (context->rdpsnd)
 			rdpsnd_server_context_free(context->rdpsnd);
+
+		if (context->encomsp)
+			encomsp_server_context_free(context->encomsp);
 
 		WTSCloseServer((HANDLE) context->vcm);
 	}
@@ -405,6 +409,7 @@ static void* tf_debug_channel_thread_func(void* arg)
 	wStream* s;
 	void* buffer;
 	DWORD BytesReturned = 0;
+	ULONG written;
 	testPeerContext* context = (testPeerContext*) arg;
 
 	if (WTSVirtualChannelQuery(context->debug_channel, WTSVirtualFileHandle, &buffer, &BytesReturned) == TRUE)
@@ -417,7 +422,7 @@ static void* tf_debug_channel_thread_func(void* arg)
 
 	s = Stream_New(NULL, 4096);
 
-	WTSVirtualChannelWrite(context->debug_channel, (PCHAR) "test1", 5, NULL);
+	WTSVirtualChannelWrite(context->debug_channel, (PCHAR) "test1", 5, &written);
 
 	while (1)
 	{
@@ -515,6 +520,11 @@ BOOL tf_peer_post_connect(freerdp_peer* client)
 		sf_peer_rdpsnd_init(context); /* Audio Output */
 	}
 
+	if (WTSVirtualChannelManagerIsChannelJoined(context->vcm, "encomsp"))
+	{
+		sf_peer_encomsp_init(context); /* Lync Multiparty */
+	}
+
 	/* Dynamic Virtual Channels */
 
 	sf_peer_audin_init(context); /* Audio Input */
@@ -583,7 +593,8 @@ void tf_peer_keyboard_event(rdpInput* input, UINT16 flags, UINT16 code)
 	{
 		if (context->debug_channel)
 		{
-			WTSVirtualChannelWrite(context->debug_channel, (PCHAR) "test2", 5, NULL);
+			ULONG written;
+			WTSVirtualChannelWrite(context->debug_channel, (PCHAR) "test2", 5, &written);
 		}
 	}
 	else if ((flags & 0x4000) && code == 0x2D) /* 'x' key */

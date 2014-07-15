@@ -43,9 +43,7 @@
 #ifndef _WIN32
 #include <netdb.h>
 #include <sys/socket.h>
-#include <sys/select.h>
-#include <sys/time.h>
-#endif
+#endif /* _WIN32 */
 
 #ifdef HAVE_VALGRIND_MEMCHECK_H
 #include <valgrind/memcheck.h>
@@ -346,8 +344,10 @@ BOOL transport_connect_nla(rdpTransport* transport)
 			freerdp_set_last_error(instance->context, FREERDP_ERROR_AUTHENTICATION_FAILED);
 		}
 
+		//TODO(ntwerdochlib) should this become a wlog message? perhaps with a new flag for console error?
 		fprintf(stderr, "Authentication failure, check credentials.\n"
 			"If credentials are valid, the NTLMSSP implementation may be to blame.\n");
+		WLog_Print(transport->log, WLOG_ERROR, "Authentication failure, check credentials.  If credentials are valid, the NTLMSSP implementation may be to blame.");
 
 		transport_set_nla_mode(transport, FALSE);
 		credssp_free(credSsp);
@@ -562,6 +562,7 @@ BOOL transport_accept_nla(rdpTransport* transport)
 	if (credssp_authenticate(transport->credssp) < 0)
 	{
 		fprintf(stderr, "client authentication failure\n");
+		WLog_Print(transport->log, WLOG_ERROR, "client authentication failure");
 
 		transport_set_nla_mode(transport, FALSE);
 		credssp_free(transport->credssp);
@@ -604,10 +605,6 @@ UINT32 nla_read_header(wStream* s)
 			length += 4;
 			Stream_Seek(s, 4);
 		}
-		else
-		{
-			fprintf(stderr, "Error reading TSRequest!\n");
-		}
 	}
 	else
 	{
@@ -629,8 +626,6 @@ UINT32 nla_header_length(wStream* s)
 			length = 3;
 		else if ((Stream_Pointer(s)[1] & ~(0x80)) == 2)
 			length = 4;
-		else
-			fprintf(stderr, "Error reading TSRequest!\n");
 	}
 	else
 	{
@@ -642,69 +637,37 @@ UINT32 nla_header_length(wStream* s)
 
 static int transport_wait_for_read(rdpTransport* transport)
 {
-	struct timeval tv;
-	fd_set rset, wset;
-	fd_set *rsetPtr = NULL, *wsetPtr = NULL;
-	rdpTcp *tcpIn;
-
-	tcpIn = transport->TcpIn;
+	rdpTcp *tcpIn = transport->TcpIn;
 
 	if (tcpIn->readBlocked)
 	{
-		rsetPtr = &rset;
-		FD_ZERO(rsetPtr);
-		FD_SET(tcpIn->sockfd, rsetPtr);
+		return tcp_wait_read(tcpIn, 10);
 	}
 	else if (tcpIn->writeBlocked)
 	{
-		wsetPtr = &wset;
-		FD_ZERO(wsetPtr);
-		FD_SET(tcpIn->sockfd, wsetPtr);
+		return tcp_wait_write(tcpIn, 10);
 	}
 
-	if (!wsetPtr && !rsetPtr)
-	{
-		USleep(1000);
-		return 0;
-	}
-
-	tv.tv_sec = 0;
-	tv.tv_usec = 1000;
-
-	return select(tcpIn->sockfd + 1, rsetPtr, wsetPtr, NULL, &tv);
+	USleep(1000);
+	return 0;
 }
 
 static int transport_wait_for_write(rdpTransport* transport)
 {
-	struct timeval tv;
-	fd_set rset, wset;
-	fd_set *rsetPtr = NULL, *wsetPtr = NULL;
 	rdpTcp *tcpOut;
 
 	tcpOut = transport->SplitInputOutput ? transport->TcpOut : transport->TcpIn;
 	if (tcpOut->writeBlocked)
 	{
-		wsetPtr = &wset;
-		FD_ZERO(wsetPtr);
-		FD_SET(tcpOut->sockfd, wsetPtr);
+		return tcp_wait_write(tcpOut, 10);
 	}
 	else if (tcpOut->readBlocked)
 	{
-		rsetPtr = &rset;
-		FD_ZERO(rsetPtr);
-		FD_SET(tcpOut->sockfd, rsetPtr);
+		return tcp_wait_read(tcpOut, 10);
 	}
 
-	if (!wsetPtr && !rsetPtr)
-	{
-		USleep(1000);
-		return 0;
-	}
-
-	tv.tv_sec = 0;
-	tv.tv_usec = 1000;
-
-	return select(tcpOut->sockfd + 1, rsetPtr, wsetPtr, NULL, &tv);
+	USleep(1000);
+	return 0;
 }
 
 int transport_read_layer(rdpTransport* transport, BYTE* data, int bytes)
@@ -778,6 +741,7 @@ int transport_read(rdpTransport* transport, wStream* s)
 
 	if (position < 4)
 	{
+		Stream_EnsureCapacity(s, 4);
 		status = transport_read_layer(transport, Stream_Buffer(s) + position, 4 - position);
 
 		if (status < 0)
@@ -815,7 +779,7 @@ int transport_read(rdpTransport* transport, wStream* s)
 				}
 				else
 				{
-					fprintf(stderr, "Error reading TSRequest!\n");
+					WLog_Print(transport->log, WLOG_ERROR, "Error reading TSRequest!\n");
 					return -1;
 				}
 			}
@@ -845,6 +809,13 @@ int transport_read(rdpTransport* transport, wStream* s)
 		}
 	}
 
+	if (pduLength < 0 || pduLength > 0xFFFF)
+	{
+		fprintf(stderr, "%s: invalid pduLength: %d\n", __FUNCTION__, pduLength);
+		return -1;
+	}
+
+	Stream_EnsureCapacity(s, pduLength);
 	status = transport_read_layer(transport, Stream_Buffer(s) + position, pduLength - position);
 
 	if (status < 0)
@@ -856,8 +827,12 @@ int transport_read(rdpTransport* transport, wStream* s)
 	/* dump when whole PDU is read */
 	if (position + status >= pduLength)
 	{
-		fprintf(stderr, "Local < Remote\n");
-		winpr_HexDump(Stream_Buffer(s), pduLength);
+		char* data = winpr_BinToHexString(Stream_Buffer(s), pduLength, TRUE);
+		if (data) 
+		{
+			WLog_Print(transport->log, WLOG_DEBUG, "Local < Remote : Bytes %d (%#x) %s", pduLength, pduLength, data);
+			free(data);
+		}
 	}
 #endif
 
@@ -896,10 +871,10 @@ int transport_write(rdpTransport* transport, wStream* s)
 	Stream_SetPosition(s, 0);
 
 #ifdef WITH_DEBUG_TRANSPORT
-	if (length > 0)
-	{
-		fprintf(stderr, "Local > Remote\n");
-		winpr_HexDump(Stream_Buffer(s), length);
+	char* data = winpr_BinToHexString(Stream_Buffer(s), length, TRUE);
+	WLog_Print(transport->log, WLOG_DEBUG, "Local > Remote : Bytes %d (%#x) %s", length, length, data);
+	if (data) {
+		free(data);
 	}
 #endif
 
@@ -1074,11 +1049,11 @@ int tranport_drain_output_buffer(rdpTransport* transport)
 
 int transport_check_fds(rdpTransport* transport)
 {
-	int pos;
-	int status;
-	int length;
-	int recv_status;
-	wStream* received;
+	int pos = 0;
+	int status = 0;
+	int length = 0;
+	int recv_status = 0;
+	wStream* received = NULL;
 
 	if (!transport)
 		return -1;
@@ -1112,7 +1087,7 @@ int transport_check_fds(rdpTransport* transport)
 			return status;
 
 		if ((pos = Stream_GetPosition(transport->ReceiveBuffer)) < 2)
-			return status;
+			return 0;
 
 		Stream_SetPosition(transport->ReceiveBuffer, 0);
 		length = 0;
@@ -1132,6 +1107,10 @@ int transport_check_fds(rdpTransport* transport)
 
 				/* TSRequest header can be 2, 3 or 4 bytes long */
 				length = nla_header_length(transport->ReceiveBuffer);
+				if (length == 0)
+				{
+					WLog_Print(transport->log, WLOG_ERROR, "Error reading TSRequest!");
+				}
 
 				if (pos < length)
 				{
@@ -1140,6 +1119,10 @@ int transport_check_fds(rdpTransport* transport)
 				}
 
 				length = nla_read_header(transport->ReceiveBuffer);
+				if (length == 0)
+				{
+					WLog_Print(transport->log, WLOG_ERROR, "Error reading TSRequest!");
+				}
 			}
 		}
 		else
@@ -1179,8 +1162,18 @@ int transport_check_fds(rdpTransport* transport)
 
 		if (length == 0)
 		{
-			fprintf(stderr, "transport_check_fds: protocol error, not a TPKT or Fast Path header.\n");
-			winpr_HexDump(Stream_Buffer(transport->ReceiveBuffer), pos);
+			char* buffer = NULL;
+			size_t buffer_size = 0;
+
+			if (winpr_HexDumpToBuffer(NULL, &buffer_size, Stream_Buffer(transport->ReceiveBuffer), pos)) {
+				char* buffer = (char*)calloc(1, buffer_size);
+				if (buffer) {
+					if (winpr_HexDumpToBuffer(&buffer, &buffer_size, Stream_Buffer(transport->ReceiveBuffer), pos))
+						WLog_Print(transport->log, WLOG_ERROR, "transport_check_fds: protocol error, not a TPKT or Fast Path header.\n%s", buffer);
+					free(buffer);
+					buffer = NULL;
+				}
+			}
 			return -1;
 		}
 
@@ -1333,6 +1326,7 @@ rdpTransport* transport_new(rdpSettings* settings)
 
 	WLog_Init();
 	transport->log = WLog_Get("com.freerdp.core.transport");
+	WLog_SetLogLevel(transport->log, WLOG_DEBUG);
 	if (!transport->log)
 		goto out_free;
 

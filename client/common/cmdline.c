@@ -111,6 +111,10 @@ COMMAND_LINE_ARGUMENT_A args[] =
 	{ "wallpaper", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueTrue, NULL, -1, NULL, "Wallpaper" },
 	{ "gdi", COMMAND_LINE_VALUE_REQUIRED, "<sw|hw>", NULL, NULL, -1, NULL, "GDI rendering" },
 	{ "gfx", COMMAND_LINE_VALUE_OPTIONAL, NULL, NULL, NULL, -1, NULL, "RDP8 graphics pipeline (experimental)" },
+	{ "gfx-thin-client", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueFalse, NULL, -1, NULL, "RDP8 graphics pipeline thin client mode" },
+	{ "gfx-small-cache", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueFalse, NULL, -1, NULL, "RDP8 graphics pipeline small cache mode" },
+	{ "gfx-progressive", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueFalse, NULL, -1, NULL, "RDP8 graphics pipeline progressive codec" },
+	{ "gfx-h264", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueFalse, NULL, -1, NULL, "RDP8.1 graphics pipeline H264 codec" },
 	{ "rfx", COMMAND_LINE_VALUE_FLAG, NULL, NULL, NULL, -1, NULL, "RemoteFX" },
 	{ "rfx-mode", COMMAND_LINE_VALUE_REQUIRED, "<image|video>", NULL, NULL, -1, NULL, "RemoteFX mode" },
 	{ "frame-ack", COMMAND_LINE_VALUE_REQUIRED, "<number>", NULL, NULL, -1, NULL, "Frame acknowledgement" },
@@ -156,6 +160,7 @@ COMMAND_LINE_ARGUMENT_A args[] =
 	{ "print-reconnect-cookie", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueFalse, NULL, -1, NULL, "Print base64 reconnect cookie after connecting" },
 	{ "heartbeat", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueFalse, NULL, -1, NULL, "Support heartbeat PDUs" },
 	{ "multitransport", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueFalse, NULL, -1, NULL, "Support multitransport protocol" },
+	{ "assistance", COMMAND_LINE_VALUE_REQUIRED, "<password>", NULL, NULL, -1, NULL, "Remote assistance password" },
 	{ NULL, 0, NULL, NULL, NULL, -1, NULL, NULL }
 };
 
@@ -284,6 +289,17 @@ int freerdp_client_command_line_pre_filter(void* context, int index, int argc, L
 				return 1;
 			}
 		}
+
+		if (length > 13)
+		{
+			if (_stricmp(&(argv[index])[length - 13], ".msrcIncident") == 0)
+			{
+				settings = (rdpSettings*) context;
+				settings->AssistanceFile = _strdup(argv[index]);
+
+				return 1;
+			}
+		}
 	}
 
 	return 0;
@@ -399,6 +415,9 @@ int freerdp_client_add_device_channel(rdpSettings* settings, int count, char** p
 
 		if (count > 2)
 			serial->Path = _strdup(params[2]);
+
+		if (count > 3)
+			serial->Driver = _strdup(params[3]);
 
 		freerdp_device_collection_add(settings, (RDPDR_DEVICE*) serial);
 
@@ -809,6 +828,38 @@ int freerdp_parse_username(char* username, char** user, char** domain)
 			*user = _strdup(username);
 			*domain = NULL;
 		}
+	}
+
+	return 0;
+}
+
+int freerdp_parse_hostname(char* hostname, char** host, int* port)
+{
+	char* p;
+	int length;
+
+	p = strrchr(hostname, ':');
+
+	if (p)
+	{
+		length = (p - hostname);
+		*host = (char*) malloc(length + 1);
+
+		if (!(*host))
+			return -1;
+
+		CopyMemory(*host, hostname, length);
+		(*host)[length] = '\0';
+		*port = atoi(p + 1);
+	}
+	else
+	{
+		*host = _strdup(hostname);
+
+		if (!(*host))
+			return -1;
+
+		*port = -1;
 	}
 
 	return 0;
@@ -1578,6 +1629,26 @@ int freerdp_client_settings_parse_command_line_arguments(rdpSettings* settings, 
 		{
 			settings->SupportGraphicsPipeline = TRUE;
 		}
+		CommandLineSwitchCase(arg, "gfx-thin-client")
+		{
+			settings->GfxThinClient = arg->Value ? TRUE : FALSE;
+			settings->SupportGraphicsPipeline = TRUE;
+		}
+		CommandLineSwitchCase(arg, "gfx-small-cache")
+		{
+			settings->GfxSmallCache = arg->Value ? TRUE : FALSE;
+			settings->SupportGraphicsPipeline = TRUE;
+		}
+		CommandLineSwitchCase(arg, "gfx-progressive")
+		{
+			settings->GfxProgressive = arg->Value ? TRUE : FALSE;
+			settings->SupportGraphicsPipeline = TRUE;
+		}
+		CommandLineSwitchCase(arg, "gfx-h264")
+		{
+			settings->GfxH264 = arg->Value ? TRUE : FALSE;
+			settings->SupportGraphicsPipeline = TRUE;
+		}
 		CommandLineSwitchCase(arg, "rfx")
 		{
 			settings->RemoteFxCodec = TRUE;
@@ -1809,6 +1880,11 @@ int freerdp_client_settings_parse_command_line_arguments(rdpSettings* settings, 
 		{
 			settings->PrintReconnectCookie = arg->Value ? TRUE : FALSE;
 		}
+		CommandLineSwitchCase(arg, "assistance")
+		{
+			settings->RemoteAssistanceMode = TRUE;
+			settings->RemoteAssistancePassword = _strdup(arg->Value);
+		}
 		CommandLineSwitchDefault(arg)
 		{
 		}
@@ -1832,6 +1908,14 @@ int freerdp_client_settings_parse_command_line_arguments(rdpSettings* settings, 
 			if (settings->Password)
 				settings->GatewayPassword = _strdup(settings->Password);
 		}
+	}
+
+	if (settings->SupportGraphicsPipeline)
+	{
+		settings->FastPathOutput = TRUE;
+		settings->ColorDepth = 32;
+		settings->LargePointerFlag = TRUE;
+		settings->FrameMarkerCommandEnabled = TRUE;
 	}
 
 	arg = CommandLineFindArgumentA(args, "port");
@@ -1985,6 +2069,12 @@ int freerdp_client_load_addins(rdpChannels* channels, rdpSettings* settings)
 
 			freerdp_client_add_static_channel(settings, 1, (char**) params);
 		}
+	}
+
+	if (settings->RemoteAssistanceMode)
+	{
+		freerdp_client_load_static_channel_addin(channels, settings, "encomsp", settings);
+		freerdp_client_load_static_channel_addin(channels, settings, "remdesk", settings);
 	}
 
 	for (index = 0; index < settings->StaticChannelCount; index++)

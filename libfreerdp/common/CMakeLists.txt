@@ -20,25 +20,36 @@ set(MODULE_PREFIX "FREERDP_COMMON")
 
 set(${MODULE_PREFIX}_SRCS
 	addin.c
-	settings.c)
+	settings.c
+	assistance.c)
 
 add_complex_library(MODULE ${MODULE_NAME} TYPE "OBJECT"
 	MONOLITHIC ${MONOLITHIC_BUILD}
 	SOURCES ${${MODULE_PREFIX}_SRCS}
 	EXPORT)
 
-set_target_properties(${MODULE_NAME} PROPERTIES VERSION ${FREERDP_VERSION_FULL} SOVERSION ${FREERDP_VERSION} PREFIX "lib")
+include_directories(${OPENSSL_INCLUDE_DIR})
+include_directories(${ZLIB_INCLUDE_DIRS})
 
-set_complex_link_libraries(VARIABLE ${MODULE_PREFIX}_LIBS MONOLITHIC ${MONOLITHIC_BUILD}
-	MODULE winpr
-	MODULES winpr-crt winpr-path winpr-file winpr-library winpr-utils)
+if (WITH_LIBRARY_VERSIONING)
+  set_target_properties(${MODULE_NAME} PROPERTIES VERSION ${FREERDP_VERSION_FULL} SOVERSION ${FREERDP_VERSION})
+endif()
+set_target_properties(${MODULE_NAME} PROPERTIES PREFIX "lib")
+
+set(${MODULE_PREFIX}_LIBS ${${MODULE_PREFIX}_LIBS}
+	${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES})
+
+set(${MODULE_PREFIX}_LIBS ${${MODULE_PREFIX}_LIBS} winpr)
 
 if(MONOLITHIC_BUILD)
 	set(FREERDP_LIBS ${FREERDP_LIBS} ${${MODULE_PREFIX}_LIBS} PARENT_SCOPE)
-else()		
+else()
 	target_link_libraries(${MODULE_NAME} ${${MODULE_PREFIX}_LIBS})
 	install(TARGETS ${MODULE_NAME} DESTINATION ${CMAKE_INSTALL_LIBDIR} EXPORT FreeRDPTargets)
 endif()
 
 set_property(TARGET ${MODULE_NAME} PROPERTY FOLDER "FreeRDP/libfreerdp")
 
+if(BUILD_TESTING)
+	add_subdirectory(test)
+endif()

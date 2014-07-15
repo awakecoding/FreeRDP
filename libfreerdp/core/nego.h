@@ -114,6 +114,7 @@ struct rdp_nego
 	BOOL GatewayBypassLocal;
 
 	rdpTransport* transport;
+	wLog* log;
 };
 typedef struct rdp_nego rdpNego;
 
@@ -156,11 +157,5 @@ void nego_set_cookie_max_length(rdpNego* nego, UINT32 cookie_max_length);
 void nego_set_send_preconnection_pdu(rdpNego* nego, BOOL send_pcpdu);
 void nego_set_preconnection_id(rdpNego* nego, UINT32 id);
 void nego_set_preconnection_blob(rdpNego* nego, char* blob);
-
-#ifdef WITH_DEBUG_NEGO
-#define DEBUG_NEGO(fmt, ...) DEBUG_CLASS(NEGO, fmt, ## __VA_ARGS__)
-#else
-#define DEBUG_NEGO(fmt, ...) DEBUG_NULL(fmt, ## __VA_ARGS__)
-#endif
 
 #endif /* __NEGO_H */

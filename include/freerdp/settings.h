@@ -466,6 +466,7 @@ struct _RDPDR_SERIAL
 	UINT32 Type;
 	char* Name;
 	char* Path;
+	char* Driver; 
 };
 typedef struct _RDPDR_SERIAL RDPDR_SERIAL;
 
@@ -585,6 +586,11 @@ typedef struct _RDPDR_PARALLEL RDPDR_PARALLEL;
 #define FreeRDP_DisableCursorShadow				966
 #define FreeRDP_DisableCursorBlinking				967
 #define FreeRDP_AllowDesktopComposition				968
+#define FreeRDP_RemoteAssistanceMode				1024
+#define FreeRDP_RemoteAssistanceSessionId			1025
+#define FreeRDP_RemoteAssistancePassStub			1026
+#define FreeRDP_RemoteAssistancePassword			1027
+#define FreeRDP_RemoteAssistanceRCTicket			1028
 #define FreeRDP_TlsSecurity					1088
 #define FreeRDP_NlaSecurity					1089
 #define FreeRDP_RdpSecurity					1090
@@ -654,6 +660,7 @@ typedef struct _RDPDR_PARALLEL RDPDR_PARALLEL;
 #define FreeRDP_CredentialsFromStdin				1604
 #define FreeRDP_ComputerName					1664
 #define FreeRDP_ConnectionFile					1728
+#define FreeRDP_AssistanceFile					1729
 #define FreeRDP_HomePath					1792
 #define FreeRDP_ConfigPath					1793
 #define FreeRDP_CurrentPath					1794
@@ -747,6 +754,11 @@ typedef struct _RDPDR_PARALLEL RDPDR_PARALLEL;
 #define FreeRDP_JpegCodec					3776
 #define FreeRDP_JpegCodecId					3777
 #define FreeRDP_JpegQuality					3778
+#define FreeRDP_GfxThinClient					3840
+#define FreeRDP_GfxSmallCache					3841
+#define FreeRDP_GfxProgressive					3842
+#define FreeRDP_GfxProgressiveV2				3843
+#define FreeRDP_GfxH264						3844
 #define FreeRDP_BitmapCacheV3CodecId				3904
 #define FreeRDP_DrawNineGridEnabled				3968
 #define FreeRDP_DrawNineGridCacheSize				3969
@@ -771,6 +783,18 @@ typedef struct _RDPDR_PARALLEL RDPDR_PARALLEL;
 #define FreeRDP_DynamicChannelCount				5056
 #define FreeRDP_DynamicChannelArraySize				5057
 #define FreeRDP_DynamicChannelArray				5058
+
+typedef struct _SmartCard_Csp_Data
+{
+	wchar_t* pszCardName;
+	UINT cbCardName;
+	wchar_t* pszReaderName;
+	UINT cbReaderName;
+	wchar_t* pszContainerName;
+	UINT cbContainerName;
+	wchar_t* pszCspName;
+	UINT cbCspName;
+} SmartCard_CSP_DATA, *PSmartCard_CSP_DATA;
 
 /**
  * FreeRDP Settings Data Structure
@@ -935,7 +959,14 @@ struct rdp_settings
 	ALIGN64 BOOL DisableCursorBlinking; /* 967 */
 	ALIGN64 BOOL AllowDesktopComposition; /* 968 */
 	UINT64 padding1024[1024 - 969]; /* 969 */
-	UINT64 padding1088[1088 - 1024]; /* 1024 */
+
+	/* Remote Assistance */
+	ALIGN64 BOOL RemoteAssistanceMode; /* 1024 */
+	ALIGN64 char* RemoteAssistanceSessionId; /* 1025 */
+	ALIGN64 char* RemoteAssistancePassStub; /* 1026 */
+	ALIGN64 char* RemoteAssistancePassword; /* 1027 */
+	ALIGN64 char* RemoteAssistanceRCTicket; /* 1028 */
+	UINT64 padding1088[1088 - 1029]; /* 1029 */
 
 	/**
 	 * X.224 Connection Request/Confirm
@@ -1047,7 +1078,8 @@ struct rdp_settings
 
 	/* Files */
 	ALIGN64 char* ConnectionFile; /* 1728 */
-	UINT64 padding1792[1792 - 1729]; /* 1729 */
+	ALIGN64 char* AssistanceFile; /* 1729 */
+	UINT64 padding1792[1792 - 1730]; /* 1730 */
 
 	/* Paths */
 	ALIGN64 char* HomePath; /* 1792 */
@@ -1247,7 +1279,13 @@ struct rdp_settings
 	ALIGN64 UINT32 JpegCodecId; /* 3777 */
 	ALIGN64 UINT32 JpegQuality; /* 3778 */
 	UINT64 padding3840[3840 - 3779]; /* 3779 */
-	UINT64 padding3904[3904 - 3840]; /* 3840 */
+
+	ALIGN64 BOOL GfxThinClient; /* 3840 */
+	ALIGN64 BOOL GfxSmallCache; /* 3841 */
+	ALIGN64 BOOL GfxProgressive; /* 3842 */
+	ALIGN64 BOOL GfxProgressiveV2; /* 3843 */
+	ALIGN64 BOOL GfxH264; /* 3844 */
+	UINT64 padding3904[3904 - 3845]; /* 3845 */
 
 	/**
 	 * Caches
@@ -1340,6 +1378,8 @@ struct rdp_settings
 	ALIGN64 struct rdp_ext_set extensions[16]; /*  */
 
 	ALIGN64 BYTE* SettingsModified; /* byte array marking fields that have been modified from their default value */
+	ALIGN64 UINT32 CredentialsType;
+	ALIGN64 SmartCard_CSP_DATA SmartCard_CSP_Data;
 };
 typedef struct rdp_settings rdpSettings;
 

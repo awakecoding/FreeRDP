@@ -28,6 +28,15 @@ typedef struct xf_context xfContext;
 #include "xf_monitor.h"
 #include "xf_channels.h"
 
+#include <freerdp/gdi/gdi.h>
+#include <freerdp/codec/rfx.h>
+#include <freerdp/codec/nsc.h>
+#include <freerdp/codec/clear.h>
+#include <freerdp/codec/color.h>
+#include <freerdp/codec/bitmap.h>
+#include <freerdp/codec/h264.h>
+#include <freerdp/codec/region.h>
+
 struct xf_WorkArea
 {
 	UINT32 x;
@@ -103,6 +112,10 @@ struct xf_context
 
 	HGDI_DC hdc;
 	BYTE* primary_buffer;
+	REGION16 invalidRegion;
+	BOOL inGfxFrame;
+	BOOL graphicsReset;
+	UINT16 outputSurfaceId;
 
 	BOOL frame_begin;
 	UINT16 frame_x1;
@@ -125,6 +138,7 @@ struct xf_context
 	BOOL mouse_active;
 	BOOL suppress_output;
 	BOOL fullscreen_toggle;
+	BOOL controlToggle;
 	UINT32 KeyboardLayout;
 	BOOL KeyboardState[256];
 	XModifierKeymap* modifierMap;
@@ -137,8 +151,10 @@ struct xf_context
 	VIRTUAL_SCREEN vscreen;
 	BYTE* bmp_codec_none;
 	BYTE* bmp_codec_nsc;
-	void* rfx_context;
-	void* nsc_context;
+	RFX_CONTEXT* rfx;
+	NSC_CONTEXT* nsc;
+	CLEAR_CONTEXT* clear;
+	H264_CONTEXT* h264;
 	void* xv_context;
 	void* clipboard_context;
 
@@ -168,11 +184,17 @@ struct xf_context
 
 	/* Channels */
 	RdpeiClientContext* rdpei;
+	RdpgfxClientContext* gfx;
+	EncomspClientContext* encomsp;
 };
 
 void xf_create_window(xfContext* xfc);
 void xf_toggle_fullscreen(xfContext* xfc);
+void xf_toggle_control(xfContext* xfc);
 BOOL xf_post_connect(freerdp* instance);
+
+void xf_encomsp_init(xfContext* xfc, EncomspClientContext* encomsp);
+void xf_encomsp_uninit(xfContext* xfc, EncomspClientContext* encomsp);
 
 enum XF_EXIT_CODE
 {

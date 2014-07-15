@@ -43,9 +43,7 @@
 #include <freerdp/freerdp.h>
 #include <freerdp/constants.h>
 #include <freerdp/utils/event.h>
-#include <freerdp/utils/svc_plugin.h>
 
-//#include <freerdp/client/file.h>
 #include <freerdp/client/cmdline.h>
 #include <freerdp/client/channels.h>
 #include <freerdp/channels/channels.h>
@@ -204,7 +202,7 @@ BOOL wf_pre_connect(freerdp* instance)
 
 		wfc->connectionRdpFile = freerdp_client_rdp_file_new();
 
-		fprintf(stderr, "Using connection file: %s\n", settings->ConnectionFile);
+		WLog_Print(wfc->log, WLOG_DEBUG, "Using connection file: %s", settings->ConnectionFile);
 
 		freerdp_client_parse_rdp_file(wfc->connectionRdpFile, settings->ConnectionFile);
 		freerdp_client_populate_settings_from_rdp_file(wfc->connectionRdpFile, settings);
@@ -293,7 +291,7 @@ BOOL wf_pre_connect(freerdp* instance)
 	if ((settings->DesktopWidth < 64) || (settings->DesktopHeight < 64) ||
 		(settings->DesktopWidth > 4096) || (settings->DesktopHeight > 4096))
 	{
-		fprintf(stderr, "wf_pre_connect: invalid dimensions %d %d\n", settings->DesktopWidth, settings->DesktopHeight);
+		WLog_Print(wfc->log, WLOG_ERROR, "wf_pre_connect: invalid dimensions %d %d\n", settings->DesktopWidth, settings->DesktopHeight);
 		return 1;
 	}
 
@@ -425,7 +423,7 @@ BOOL wf_post_connect(freerdp* instance)
 	UpdateWindow(wfc->hwnd);
 
 	if (wfc->sw_gdi)
-	{											
+	{
 		instance->update->BeginPaint = (pBeginPaint) wf_sw_begin_paint;
 		instance->update->EndPaint = (pEndPaint) wf_sw_end_paint;
 		instance->update->DesktopResize = (pDesktopResize) wf_sw_desktop_resize;
@@ -457,55 +455,189 @@ BOOL wf_post_connect(freerdp* instance)
 	return TRUE;
 }
 
-static const char wfTargetName[] = "TARGET";
+#define OFFSET(type, field) ((ULONG_PTR)(&((type *)0)->field))
 
-static CREDUI_INFOA wfUiInfo =
+BOOL CopyCspDataValue(PKERB_SMARTCARD_CSP_INFO cspInfo, PWSTR* buffer, PUINT len, DWORD offset)
 {
-	sizeof(CREDUI_INFOA),
-	NULL,
-	"Enter your credentials",
-	"Remote Desktop Security",
-	NULL
-};
+	DWORD bufferLen = cspInfo->dwCspInfoLen - (ULONG) OFFSET(KERB_SMARTCARD_CSP_INFO, bBuffer);
+	size_t fieldLen = 0;
+	wchar_t* start = (&cspInfo->bBuffer)+offset;
+	fieldLen = (wcsnlen(start, bufferLen)*2); /* need byte count */
+	*buffer = (PWSTR)malloc(fieldLen+2);
+	RtlCopyMemory(*buffer, &cspInfo->bBuffer+offset, fieldLen+2);
+	*len = fieldLen;
+	return TRUE;
+}
 
 BOOL wf_authenticate(freerdp* instance, char** username, char** password, char** domain)
 {
-	BOOL fSave;
-	DWORD status;
-	DWORD dwFlags;
-	char UserName[CREDUI_MAX_USERNAME_LENGTH + 1];
-	char Password[CREDUI_MAX_PASSWORD_LENGTH + 1];
-	char User[CREDUI_MAX_USERNAME_LENGTH + 1];
-	char Domain[CREDUI_MAX_DOMAIN_TARGET_LENGTH + 1];
+	rdpSettings* settings = instance->settings;
+	wfContext* wfc = (wfContext*)instance->context;
 
-	fSave = FALSE;
-	ZeroMemory(UserName, sizeof(UserName));
-	ZeroMemory(Password, sizeof(Password));
-	dwFlags = CREDUI_FLAGS_DO_NOT_PERSIST | CREDUI_FLAGS_EXCLUDE_CERTIFICATES;
+	DWORD dwResult;
+	PVOID pvInAuthBlob = NULL;
+	ULONG cbInAuthBlob = 0;
+	PVOID pvAuthBlob = NULL;
+	ULONG cbAuthBlob = 0;
+	CREDUI_INFO ui;
+	ULONG ulAuthPackage = 0;
+	BOOL fSave = FALSE;
 
-	status = CredUIPromptForCredentialsA(&wfUiInfo, wfTargetName, NULL, 0,
-		UserName, CREDUI_MAX_USERNAME_LENGTH + 1,
-		Password, CREDUI_MAX_PASSWORD_LENGTH + 1, &fSave, dwFlags);
+	WCHAR szUsername[MAX_PATH] = {0};
+	DWORD cchUsername = ARRAYSIZE(szUsername);
+	WCHAR szPassword[MAX_PATH] = {0};
+	DWORD cchPassword = ARRAYSIZE(szPassword);
+	WCHAR szDomain[MAX_PATH] = {0};
+	DWORD cchDomain = ARRAYSIZE(szDomain);
+	BOOL ret;
+	DWORD flags = CRED_PACK_PROTECTED_CREDENTIALS | CRED_PACK_GENERIC_CREDENTIALS;
+	WCHAR credUIMessageText[256] = {0};
 
-	if (status != NO_ERROR)
-	{
-		fprintf(stderr, "CredUIPromptForCredentials unexpected status: 0x%08X\n", status);
+	swprintf_s(credUIMessageText, ARRAYSIZE(credUIMessageText), L"Enter credentials for authentication to %S", settings->ServerHostname);
+
+	// Display a dialog box to request credentials.
+	ui.cbSize = sizeof(ui);
+	ui.hwndParent = NULL; //GetConsoleWindow();
+	ui.pszMessageText = credUIMessageText;
+	ui.pszCaptionText = L"Credentials Required";
+	ui.hbmBanner = NULL;
+
+	dwResult = CredUIPromptForWindowsCredentials(
+		&ui,             // Customizing information
+		0,               // Error code to display
+		&ulAuthPackage,  // Authorization package
+		NULL,    // Credential byte array
+		0,    // Size of credential input buffer
+		&pvAuthBlob,     // Output credential byte array
+		&cbAuthBlob,     // Size of credential byte array
+		&fSave,          // Select the save check box.
+		CREDUIWIN_AUTHPACKAGE_ONLY
+		);
+	if (dwResult != ERROR_SUCCESS) {
+		WLog_Print(wfc->log, WLOG_ERROR, "CredUIPromptForWindowsCredentials error: %#x", dwResult);
 		return FALSE;
 	}
 
-	ZeroMemory(User, sizeof(User));
-	ZeroMemory(Domain, sizeof(Domain));
+	{
+		PKERB_INTERACTIVE_LOGON pLogon = (PKERB_INTERACTIVE_LOGON)pvAuthBlob;
 
-	status = CredUIParseUserNameA(UserName, User, sizeof(User), Domain, sizeof(Domain));
+		switch (pLogon->MessageType) {
+		case 13 /*KerbCertificateLogon*/:
+		case KerbSmartCardUnlockLogon: /*TODO(ntwerdochlib) does this apply? */
+		case KerbSmartCardLogon:
+			{
+				int index;
+				RDPDR_DEVICE* device;
+				RDPDR_SMARTCARD* smartcard = NULL;
+				PWSTR pszCardName = NULL;
+				PWSTR pszContainerName = NULL;
 
-	//fprintf(stderr, "User: %s Domain: %s Password: %s\n", User, Domain, Password);
+				DWORD cardNameLen = 0;
+				DWORD containerNameLen = 0;
 
-	*username = _strdup(User);
+				PKERB_CERTIFICATE_LOGON pCertLogon = (PKERB_CERTIFICATE_LOGON)pvAuthBlob;
+				unsigned int csp_offset = (UINT)pCertLogon->CspData;
 
-	if (strlen(Domain) > 0)
-		*domain = _strdup(Domain);
+				PKERB_SMARTCARD_CSP_INFO pInfo = (PKERB_SMARTCARD_CSP_INFO)((PBYTE)pvAuthBlob+csp_offset);
 
-	*password = _strdup(Password);
+				CopyCspDataValue(pInfo, &settings->SmartCard_CSP_Data.pszCardName, &settings->SmartCard_CSP_Data.cbCardName, pInfo->nCardNameOffset);
+				CopyCspDataValue(pInfo, &settings->SmartCard_CSP_Data.pszReaderName, &settings->SmartCard_CSP_Data.cbReaderName, pInfo->nReaderNameOffset);
+				CopyCspDataValue(pInfo, &settings->SmartCard_CSP_Data.pszContainerName, &settings->SmartCard_CSP_Data.cbContainerName, pInfo->nContainerNameOffset);
+				CopyCspDataValue(pInfo, &settings->SmartCard_CSP_Data.pszCspName, &settings->SmartCard_CSP_Data.cbCspName, pInfo->nCSPNameOffset);
+
+				settings->CredentialsType = 2;
+
+				//TODO(ntwerdochlib) Recheck this logic and how it relates to adding all local readers if the /smartcard option is specified
+
+				/* Ensure smartcard redirection is enabled */
+				WLog_Print(wfc->log, WLOG_DEBUG, "Ensuring smartcard channel is active. Settings: %p", settings);
+
+				for (index = 0; index < settings->DeviceCount; index++) {
+					device = (RDPDR_DEVICE*) settings->DeviceArray[index];
+					if (device->Type == RDPDR_DTYP_SMARTCARD) {
+						smartcard = (RDPDR_SMARTCARD*)device;
+						break;
+					}
+				}
+
+				if (! smartcard) {
+					RDPDR_SMARTCARD* smartcard = (RDPDR_SMARTCARD*) malloc(sizeof(RDPDR_SMARTCARD));
+					ZeroMemory(smartcard, sizeof(RDPDR_SMARTCARD));
+					WLog_Print(wfc->log, WLOG_DEBUG, "Adding smartcard device for redirection");
+
+					smartcard->Type = RDPDR_DTYP_SMARTCARD;
+					freerdp_device_collection_add(settings, (RDPDR_DEVICE*) smartcard);
+					settings->DeviceRedirection = TRUE;
+				}
+
+				break;
+			}
+
+		case KerbInteractiveLogon:
+			/* this value is defaulted to 1 in settings.h, but doing it here for consistency */
+			settings->CredentialsType = 1;
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	/* note: the buffer size parameters returned inlude the null byte */
+	ret = CredUnPackAuthenticationBuffer(flags, pvAuthBlob, cbAuthBlob, &szUsername[0], &cchUsername, &szDomain[0], &cchDomain, &szPassword[0], &cchPassword); 
+	if (ret == TRUE) {
+		wchar_t* user = szUsername;
+		wchar_t* domain = szDomain;
+		wchar_t* ptr = NULL;
+
+		if (! CredIsMarshaledCredential(szUsername)) {
+			ptr = wcsstr(szUsername, L"\\");
+			if (!ptr) {
+				ptr = wcsstr(szUsername, L"@");
+			}
+
+			switch (*ptr) {
+			case '\\':
+				user = ptr+1;
+				domain = szUsername;
+				*ptr = 0x0000;
+				/* reset the buffer length vars, adding the null byte back in */
+				cchUsername = wcslen(user)+1;
+				cchDomain = wcslen(domain)+1;
+				break;
+
+			case '@':
+				user = szUsername;
+				domain = ptr+1;
+				*ptr = 0x0000;
+				/* reset the buffer length vars, adding the null byte back in */
+				cchUsername = wcslen(user)+1;
+				cchDomain = wcslen(domain)+1;
+				break;
+
+			default:
+				user = szUsername;
+				domain = szDomain;
+				break;
+			}
+		}
+
+		settings->Username = (char*)malloc(cchUsername);
+		WideCharToMultiByte(CP_ACP, 0, user, cchUsername, settings->Username, cchUsername, NULL, NULL);
+
+		if (domain) {
+			settings->Domain = (char*)malloc(cchDomain);
+			WideCharToMultiByte(CP_ACP, 0, domain, cchDomain, settings->Domain, cchDomain, NULL, NULL);
+		}
+
+		settings->Password = (char*)malloc(cchPassword);
+		WideCharToMultiByte(CP_ACP, 0, szPassword, cchPassword, settings->Password, cchPassword, NULL, NULL);
+	}
+
+	if (pvAuthBlob) {
+		RtlSecureZeroMemory(pvAuthBlob, cbAuthBlob);
+		CoTaskMemFree(pvAuthBlob);
+	}
 
 	return TRUE;
 }
@@ -937,7 +1069,7 @@ DWORD WINAPI wf_client_thread(LPVOID lpParam)
 
 	freerdp_disconnect(instance);
 
-	printf("Main thread exited.\n");
+	WLog_Print(wfc->log, WLOG_DEBUG, "Main thread exited.");
 
 	ExitThread(0);
 	
@@ -979,7 +1111,7 @@ DWORD WINAPI wf_keyboard_thread(LPVOID lpParam)
 		fprintf(stderr, "failed to install keyboard hook\n");
 	}
 
-	printf("Keyboard thread exited.\n");
+	WLog_Print(wfc->log, WLOG_DEBUG, "Keyboard thread exited.");
 
 	ExitThread(0);
 	return (DWORD) NULL;
@@ -1004,7 +1136,7 @@ int freerdp_client_focus_out(wfContext* wfc)
 
 int freerdp_client_set_window_size(wfContext* wfc, int width, int height)
 {
-	fprintf(stderr, "freerdp_client_set_window_size %d, %d", width, height);
+	WLog_Print(wfc->log, WLOG_DEBUG, "freerdp_client_set_window_size %d, %d", width, height);
 	
 	if ((width != wfc->client_width) || (height != wfc->client_height))
 	{
@@ -1029,7 +1161,7 @@ int freerdp_client_load_settings_from_rdp_file(wfContext* wfc, char* filename)
 		freerdp_client_rdp_file_free(wfc->connectionRdpFile);
 		wfc->connectionRdpFile = freerdp_client_rdp_file_new();
 
-		fprintf(stderr, "Using connection file: %s\n", settings->ConnectionFile);
+		WLog_Print(wfc->log, WLOG_DEBUG, "Using connection file: %s\n", settings->ConnectionFile);
 
 		if (!freerdp_client_parse_rdp_file(wfc->connectionRdpFile, settings->ConnectionFile))
 		{
@@ -1171,8 +1303,6 @@ void wfreerdp_client_global_init(void)
 	wf_create_console();
 #endif
 
-	freerdp_channels_global_init();
-
 	freerdp_register_addin_provider(freerdp_channels_load_static_addin_entry, 0);
 }
 
@@ -1184,6 +1314,9 @@ void wfreerdp_client_global_uninit(void)
 int wfreerdp_client_new(freerdp* instance, rdpContext* context)
 {
 	wfContext* wfc = (wfContext*) context;
+
+	wfc->log = WLog_Get("com.freerdp.client");
+	WLog_SetLogLevel(wfc->log, WLOG_DEBUG);
 
 	wfreerdp_client_global_init();
 
