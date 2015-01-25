@@ -68,49 +68,66 @@ typedef struct rdpudp rdpUdp;
 
 #define E_ABORT					0x80004004
 
-typedef struct {
+struct _RDPUDP_FEC_HEADER
+{
 	UINT32 snSourceAck;
 	UINT16 uReceiveWindowSize;
 	UINT16 uFlags;
-} RDPUDP_FEC_HEADER;
+};
+typedef struct _RDPUDP_FEC_HEADER RDPUDP_FEC_HEADER;
 
-typedef struct {
+struct _RDPUDP_FEC_PAYLOAD_HEADER
+{
 	UINT32 snCoded;
 	UINT32 snSourceStart;
 	UINT16 uSourceRange;
 	UINT16 uFecIndex;
 	UINT16 uPadding;
-} RDPUDP_FEC_PAYLOAD_HEADER;
+};
+typedef struct _RDPUDP_FEC_PAYLOAD_HEADER RDPUDP_FEC_PAYLOAD_HEADER;
 
-typedef struct {
+struct _RDPUDP_PAYLOAD_PREFIX
+{
 	UINT16 cbPayloadSize;
-} RDPUDP_PAYLOAD_PREFIX;
+};
+typedef struct _RDPUDP_PAYLOAD_PREFIX RDPUDP_PAYLOAD_PREFIX;
 
-typedef struct {
+struct _RDPUDP_SOURCE_PAYLOAD_HEADER
+{
 	UINT32 snCoded;
 	UINT32 snSourceStart;
-} RDPUDP_SOURCE_PAYLOAD_HEADER;
+};
+typedef struct _RDPUDP_SOURCE_PAYLOAD_HEADER RDPUDP_SOURCE_PAYLOAD_HEADER;
 
-typedef struct {
+struct _RDPUDP_SYNDATA_PAYLOAD
+{
 	UINT32 snInitialSequenceNumber;
 	UINT16 uUpStreamMtu;
 	UINT16 uDownStreamMtu;
-} RDPUDP_SYNDATA_PAYLOAD;
+};
+typedef struct _RDPUDP_SYNDATA_PAYLOAD RDPUDP_SYNDATA_PAYLOAD;
 
-typedef struct {
+struct _RDPUDP_ACK_OF_ACKVECTOR_HEADER
+{
 	UINT32 snAckOfAcksSeqNum;
-} RDPUDP_ACK_OF_ACKVECTOR_HEADER;
+};
+typedef struct _RDPUDP_ACK_OF_ACKVECTOR_HEADER RDPUDP_ACK_OF_ACKVECTOR_HEADER;
 
-typedef struct {
+struct _RDPUDP_ACK_VECTOR_HEADER
+{
 	UINT16 uAckVectorSize;
 	UINT8 AckVectorElement[RDPUDP_ACKVECTOR_SIZE];
-} RDPUDP_ACK_VECTOR_HEADER;
+};
+typedef struct _RDPUDP_ACK_VECTOR_HEADER RDPUDP_ACK_VECTOR_HEADER;
 
-typedef struct {
+struct _RDPUDP_CORRELATION_ID_PAYLOAD
+{
 	BYTE uCorrelationId[16];
-} RDPUDP_CORRELATION_ID_PAYLOAD;
+};
+typedef struct _RDPUDP_CORRELATION_ID_PAYLOAD RDPUDP_CORRELATION_ID_PAYLOAD;
 
-typedef struct {
+struct _RDPUDP_PDU
+{
 	wStream* s;
 
 	RDPUDP_FEC_HEADER fecHeader;
@@ -123,7 +140,8 @@ typedef struct {
 
 	BYTE* payloadData;
 	int payloadSize;
-} RDPUDP_PDU;
+};
+typedef struct _RDPUDP_PDU RDPUDP_PDU;
 
 struct rdpudp
 {
@@ -168,12 +186,12 @@ struct rdpudp
 	UINT16 serverReceiveWindowSize;
 };
 
-BOOL rdpudp_init(rdpUdp* rdpudp, UINT16 protocol);
+BOOL rdp_udp_init(rdpUdp* rdpudp, UINT16 protocol);
 
-int rdpudp_read(rdpUdp* rdpudp, BYTE* data, int size);
-int rdpudp_write(rdpUdp* rdpudp, BYTE* data, int size);
+int rdp_udp_read(rdpUdp* rdpudp, BYTE* data, int size);
+int rdp_udp_write(rdpUdp* rdpudp, BYTE* data, int size);
 
-rdpUdp* rdpudp_new(rdpRdp* rdp);
-void rdpudp_free(rdpUdp* rdpUdp);
+rdpUdp* rdp_udp_new(rdpRdp* rdp);
+void rdp_udp_free(rdpUdp* rdpUdp);
 
 #endif /* __RDPUDP_H */

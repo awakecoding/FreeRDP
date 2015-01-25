@@ -24,11 +24,14 @@
 #include <assert.h>
 
 #include <winpr/crt.h>
+#include <winpr/ssl.h>
 #include <winpr/sspi.h>
 #include <winpr/stream.h>
 #include <winpr/winsock.h>
 
 #include "rdpudp_tls.h"
+
+#define TAG FREERDP_TAG("core.udp.tls")
 
 #define TLS_STATE_UNINITIALIZED		0
 #define TLS_STATE_INITIALIZED		1
@@ -38,7 +41,7 @@
 
 #define TLS_BUFFER_SIZE			1200
 
-static CryptoCert rdpudp_tls_get_certificate(rdpUdpTls* tls, BOOL peer)
+static CryptoCert rdp_udp_tls_get_certificate(rdpUdpTls* tls, BOOL peer)
 {
 	CryptoCert cert;
 	X509* server_cert;
@@ -50,7 +53,7 @@ static CryptoCert rdpudp_tls_get_certificate(rdpUdpTls* tls, BOOL peer)
 
 	if (!server_cert)
 	{
-		fprintf(stderr, "rdpudp_tls_get_certificate: failed to get the server TLS certificate\n");
+		fprintf(stderr, "rdp_udp_tls_get_certificate: failed to get the server TLS certificate\n");
 		cert = NULL;
 	}
 	else
@@ -62,7 +65,7 @@ static CryptoCert rdpudp_tls_get_certificate(rdpUdpTls* tls, BOOL peer)
 	return cert;
 }
 
-static void rdpudp_tls_free_certificate(CryptoCert cert)
+static void rdp_udp_tls_free_certificate(CryptoCert cert)
 {
 	X509_free(cert->px509);
 	free(cert);
@@ -70,7 +73,7 @@ static void rdpudp_tls_free_certificate(CryptoCert cert)
 
 #define TLS_SERVER_END_POINT	"tls-server-end-point:"
 
-SecPkgContext_Bindings* rdpudp_tls_get_channel_bindings(X509* cert)
+SecPkgContext_Bindings* rdp_udp_tls_get_channel_bindings(X509* cert)
 {
 	int PrefixLength;
 	BYTE CertificateHash[32];
@@ -102,7 +105,7 @@ SecPkgContext_Bindings* rdpudp_tls_get_channel_bindings(X509* cert)
 	return ContextBindings;
 }
 
-void rdpudp_tls_ssl_info_callback(const SSL* ssl, int type, int val)
+void rdp_udp_tls_ssl_info_callback(const SSL* ssl, int type, int val)
 {
 	if (type & SSL_CB_HANDSHAKE_START)
 	{
@@ -110,7 +113,7 @@ void rdpudp_tls_ssl_info_callback(const SSL* ssl, int type, int val)
 	}
 }
 
-static BOOL rdpudp_tls_init(rdpUdpTls* tls)
+static BOOL rdp_udp_tls_init(rdpUdpTls* tls)
 {
 	long options = 0;
 	int status;
@@ -211,13 +214,13 @@ static BOOL rdpudp_tls_init(rdpUdpTls* tls)
 	return TRUE;
 }
 
-BOOL rdpudp_tls_connect(rdpUdpTls* tls)
+BOOL rdp_udp_tls_connect(rdpUdpTls* tls)
 {
-	CryptoCert cert;
 	int status;
 	int error;
+	CryptoCert cert;
 
-	if (!rdpudp_tls_init(tls))
+	if (!rdp_udp_tls_init(tls))
 	{
 		return FALSE;
 	}
@@ -228,44 +231,44 @@ BOOL rdpudp_tls_connect(rdpUdpTls* tls)
 	{
 		error = SSL_get_error(tls->ssl, status);
 
-		fprintf(stderr, "rdpudp_tls_connect: status: %d error: 0x%08X\n", status, error);
+		fprintf(stderr, "rdp_udp_tls_connect: status: %d error: 0x%08X\n", status, error);
 
 		tls->lastError = error;
 
 		return FALSE;
 	}
 
-	cert = rdpudp_tls_get_certificate(tls, TRUE);
+	cert = rdp_udp_tls_get_certificate(tls, TRUE);
 
 	if (!cert)
 	{
-		fprintf(stderr, "rdpudp_tls_connect: rdpudp_tls_get_certificate failed to return the server certificate.\n");
+		fprintf(stderr, "rdp_udp_tls_connect: rdp_udp_tls_get_certificate failed to return the server certificate.\n");
 		return FALSE;
 	}
 
-	tls->Bindings = rdpudp_tls_get_channel_bindings(cert->px509);
+	tls->Bindings = rdp_udp_tls_get_channel_bindings(cert->px509);
 
 	if (!crypto_cert_get_public_key(cert, &tls->PublicKey, &tls->PublicKeyLength))
 	{
-		fprintf(stderr, "rdpudp_tls_connect: crypto_cert_get_public_key failed to return the server public key.\n");
-		rdpudp_tls_free_certificate(cert);
+		fprintf(stderr, "rdp_udp_tls_connect: crypto_cert_get_public_key failed to return the server public key.\n");
+		rdp_udp_tls_free_certificate(cert);
 		return FALSE;
 	}
 
-	if (!rdpudp_tls_verify_certificate(tls, cert, tls->hostname, tls->port))
+	if (!rdp_udp_tls_verify_certificate(tls, cert, tls->hostname, tls->port))
 	{
-		fprintf(stderr, "rdpudp_tls_connect: certificate not trusted, aborting.\n");
-		rdpudp_tls_disconnect(tls);
-		rdpudp_tls_free_certificate(cert);
+		fprintf(stderr, "rdp_udp_tls_connect: certificate not trusted, aborting.\n");
+		rdp_udp_tls_disconnect(tls);
+		rdp_udp_tls_free_certificate(cert);
 		return FALSE;
 	}
 
-	rdpudp_tls_free_certificate(cert);
+	rdp_udp_tls_free_certificate(cert);
 
 	return TRUE;
 }
 
-BOOL rdpudp_tls_accept(rdpUdpTls* tls, const char* cert_file, const char* privatekey_file)
+BOOL rdp_udp_tls_accept(rdpUdpTls* tls, const char* cert_file, const char* privatekey_file)
 {
 	CryptoCert cert;
 	long options = 0;
@@ -358,7 +361,7 @@ BOOL rdpudp_tls_accept(rdpUdpTls* tls, const char* cert_file, const char* privat
 					break;
 
 				default:
-					if (rdpudp_tls_print_error("SSL_accept", tls->ssl, connection_status))
+					if (rdp_udp_tls_print_error("SSL_accept", tls->ssl, connection_status))
 						return FALSE;
 					break;
 
@@ -370,18 +373,18 @@ BOOL rdpudp_tls_accept(rdpUdpTls* tls, const char* cert_file, const char* privat
 		}
 	}
 
-	cert = rdpudp_tls_get_certificate(tls, FALSE);
+	cert = rdp_udp_tls_get_certificate(tls, FALSE);
 
 	if (!cert)
 	{
-		fprintf(stderr, "rdpudp_tls_connect: rdpudp_tls_get_certificate failed to return the server certificate.\n");
+		fprintf(stderr, "rdp_udp_tls_connect: rdp_udp_tls_get_certificate failed to return the server certificate.\n");
 		return FALSE;
 	}
 
 	if (!crypto_cert_get_public_key(cert, &tls->PublicKey, &tls->PublicKeyLength))
 	{
-		fprintf(stderr, "rdpudp_tls_connect: crypto_cert_get_public_key failed to return the server public key.\n");
-		rdpudp_tls_free_certificate(cert);
+		fprintf(stderr, "rdp_udp_tls_connect: crypto_cert_get_public_key failed to return the server public key.\n");
+		rdp_udp_tls_free_certificate(cert);
 		return FALSE;
 	}
 
@@ -392,7 +395,7 @@ BOOL rdpudp_tls_accept(rdpUdpTls* tls, const char* cert_file, const char* privat
 	return TRUE;
 }
 
-BOOL rdpudp_tls_disconnect(rdpUdpTls* tls)
+BOOL rdp_udp_tls_disconnect(rdpUdpTls* tls)
 {
 	if (!tls)
 		return FALSE;
@@ -434,7 +437,7 @@ BOOL rdpudp_tls_disconnect(rdpUdpTls* tls)
 	return TRUE;
 }
 
-int rdpudp_tls_decrypt(rdpUdpTls* tls, BYTE* data, int length)
+int rdp_udp_tls_decrypt(rdpUdpTls* tls, BYTE* data, int length)
 {
 	int error;
 	int status;
@@ -463,7 +466,7 @@ int rdpudp_tls_decrypt(rdpUdpTls* tls, BYTE* data, int length)
 	return status;
 }
 
-int rdpudp_tls_encrypt(rdpUdpTls* tls, BYTE* data, int length)
+int rdp_udp_tls_encrypt(rdpUdpTls* tls, BYTE* data, int length)
 {
 	int error;
 	int status;
@@ -492,7 +495,7 @@ int rdpudp_tls_encrypt(rdpUdpTls* tls, BYTE* data, int length)
 	return status;
 }
 
-int rdpudp_tls_read(rdpUdpTls* tls, BYTE* data, int length)
+int rdp_udp_tls_read(rdpUdpTls* tls, BYTE* data, int length)
 {
 	int error;
 	int status;
@@ -514,7 +517,7 @@ int rdpudp_tls_read(rdpUdpTls* tls, BYTE* data, int length)
 	{
 		error = SSL_get_error(tls->ssl, status);
 
-		//fprintf(stderr, "rdpudp_tls_read: length: %d status: %d error: 0x%08X\n",
+		//fprintf(stderr, "rdp_udp_tls_read: length: %d status: %d error: 0x%08X\n",
 		//		length, status, error);
 
 		switch (error)
@@ -534,13 +537,13 @@ int rdpudp_tls_read(rdpUdpTls* tls, BYTE* data, int length)
 				}
 				else
 				{
-					rdpudp_tls_print_error("SSL_read", tls->ssl, status);
+					rdp_udp_tls_print_error("SSL_read", tls->ssl, status);
 					status = -1;
 				}
 				break;
 
 			default:
-				rdpudp_tls_print_error("SSL_read", tls->ssl, status);
+				rdp_udp_tls_print_error("SSL_read", tls->ssl, status);
 				status = -1;
 				break;
 		}
@@ -549,7 +552,7 @@ int rdpudp_tls_read(rdpUdpTls* tls, BYTE* data, int length)
 	return status;
 }
 
-int rdpudp_tls_write(rdpUdpTls* tls, BYTE* data, int length)
+int rdp_udp_tls_write(rdpUdpTls* tls, BYTE* data, int length)
 {
 	int error;
 	int status;
@@ -566,7 +569,7 @@ int rdpudp_tls_write(rdpUdpTls* tls, BYTE* data, int length)
 	{
 		error = SSL_get_error(tls->ssl, status);
 
-		//fprintf(stderr, "rdpudp_tls_write: length: %d status: %d error: 0x%08X\n", length, status, error);
+		//fprintf(stderr, "rdp_udp_tls_write: length: %d status: %d error: 0x%08X\n", length, status, error);
 
 		switch (error)
 		{
@@ -585,13 +588,13 @@ int rdpudp_tls_write(rdpUdpTls* tls, BYTE* data, int length)
 				}
 				else
 				{
-					rdpudp_tls_print_error("SSL_write", tls->ssl, status);
+					rdp_udp_tls_print_error("SSL_write", tls->ssl, status);
 					status = -1;
 				}
 				break;
 
 			default:
-				rdpudp_tls_print_error("SSL_write", tls->ssl, status);
+				rdp_udp_tls_print_error("SSL_write", tls->ssl, status);
 				status = -1;
 				break;
 		}
@@ -600,12 +603,12 @@ int rdpudp_tls_write(rdpUdpTls* tls, BYTE* data, int length)
 	return status;
 }
 
-int rdpudp_tls_get_last_error(rdpUdpTls* tls)
+int rdp_udp_tls_get_last_error(rdpUdpTls* tls)
 {
 	return tls->lastError;
 }
 
-static void rdpudp_tls_errors(const char *prefix)
+static void rdp_udp_tls_errors(const char *prefix)
 {
 	unsigned long error;
 
@@ -613,7 +616,7 @@ static void rdpudp_tls_errors(const char *prefix)
 		fprintf(stderr, "%s: %s\n", prefix, ERR_error_string(error, NULL));
 }
 
-BOOL rdpudp_tls_print_error(char* func, SSL* connection, int value)
+BOOL rdp_udp_tls_print_error(char* func, SSL* connection, int value)
 {
 	switch (SSL_get_error(connection, value))
 	{
@@ -631,22 +634,22 @@ BOOL rdpudp_tls_print_error(char* func, SSL* connection, int value)
 
 		case SSL_ERROR_SYSCALL:
 			fprintf(stderr, "%s: I/O error: %s (%d)\n", func, strerror(errno), errno);
-			rdpudp_tls_errors(func);
+			rdp_udp_tls_errors(func);
 			return TRUE;
 
 		case SSL_ERROR_SSL:
 			fprintf(stderr, "%s: Failure in SSL library (protocol error?)\n", func);
-			rdpudp_tls_errors(func);
+			rdp_udp_tls_errors(func);
 			return TRUE;
 
 		default:
 			fprintf(stderr, "%s: Unknown error\n", func);
-			rdpudp_tls_errors(func);
+			rdp_udp_tls_errors(func);
 			return TRUE;
 	}
 }
 
-int rdpudp_tls_set_alert_code(rdpUdpTls* tls, int level, int description)
+int rdp_udp_tls_set_alert_code(rdpUdpTls* tls, int level, int description)
 {
 	tls->alertLevel = level;
 	tls->alertDescription = description;
@@ -654,7 +657,7 @@ int rdpudp_tls_set_alert_code(rdpUdpTls* tls, int level, int description)
 	return 0;
 }
 
-BOOL rdpudp_tls_match_hostname(char *pattern, int pattern_length, char *hostname)
+BOOL rdp_udp_tls_match_hostname(char *pattern, int pattern_length, char *hostname)
 {
 	if (strlen(hostname) == pattern_length)
 	{
@@ -674,7 +677,7 @@ BOOL rdpudp_tls_match_hostname(char *pattern, int pattern_length, char *hostname
 	return FALSE;
 }
 
-BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostname, int port)
+BOOL rdp_udp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostname, int port)
 {
 	int match;
 	int index;
@@ -705,7 +708,7 @@ BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostna
 		
 		if (!bio)
 		{
-			fprintf(stderr, "rdpudp_tls_verify_certificate: BIO_new() failure\n");
+			fprintf(stderr, "rdp_udp_tls_verify_certificate: BIO_new() failure\n");
 			return FALSE;
 		}
 
@@ -713,7 +716,7 @@ BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostna
 
 		if (status < 0)
 		{
-			fprintf(stderr, "rdpudp_tls_verify_certificate: PEM_write_bio_X509 failure: %d\n", status);
+			fprintf(stderr, "rdp_udp_tls_verify_certificate: PEM_write_bio_X509 failure: %d\n", status);
 			return FALSE;
 		}
 		
@@ -725,7 +728,7 @@ BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostna
 		
 		if (status < 0)
 		{
-			fprintf(stderr, "rdpudp_tls_verify_certificate: failed to read certificate\n");
+			fprintf(stderr, "rdp_udp_tls_verify_certificate: failed to read certificate\n");
 			return FALSE;
 		}
 		
@@ -746,7 +749,7 @@ BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostna
 
 		if (status < 0)
 		{
-			fprintf(stderr, "rdpudp_tls_verify_certificate: failed to read certificate\n");
+			fprintf(stderr, "rdp_udp_tls_verify_certificate: failed to read certificate\n");
 			return FALSE;
 		}
 		
@@ -791,7 +794,7 @@ BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostna
 
 	if (common_name != NULL)
 	{
-		if (rdpudp_tls_match_hostname(common_name, common_name_length, hostname))
+		if (rdp_udp_tls_match_hostname(common_name, common_name_length, hostname))
 			hostname_match = TRUE;
 	}
 
@@ -801,7 +804,7 @@ BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostna
 	{
 		for (index = 0; index < alt_names_count; index++)
 		{
-			if (rdpudp_tls_match_hostname(alt_names[index], alt_names_lengths[index], hostname))
+			if (rdp_udp_tls_match_hostname(alt_names[index], alt_names_lengths[index], hostname))
 			{
 				hostname_match = TRUE;
 				break;
@@ -823,7 +826,7 @@ BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostna
 
 	/* if the certificate is valid but the certificate name does not match, warn user, do not accept */
 	if (certificate_status && !hostname_match)
-		rdpudp_tls_print_certificate_name_mismatch_error(hostname, common_name, alt_names, alt_names_count);
+		rdp_udp_tls_print_certificate_name_mismatch_error(hostname, common_name, alt_names, alt_names_count);
 
 	/* verification could not succeed with OpenSSL, use known_hosts file and prompt user for manual verification */
 
@@ -846,7 +849,7 @@ BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostna
 		{
 			/* no entry was found in known_hosts file, prompt user for manual verification */
 			if (!hostname_match)
-				rdpudp_tls_print_certificate_name_mismatch_error(hostname, common_name, alt_names, alt_names_count);
+				rdp_udp_tls_print_certificate_name_mismatch_error(hostname, common_name, alt_names, alt_names_count);
 
 			if (instance->VerifyCertificate)
 				accept_certificate = instance->VerifyCertificate(instance, subject, issuer, fingerprint);
@@ -866,7 +869,7 @@ BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostna
 		else if (match == -1)
 		{
 			/* entry was found in known_hosts file, but fingerprint does not match. ask user to use it */
-			rdpudp_tls_print_certificate_error(hostname, fingerprint, tls->certificate_store->file);
+			rdp_udp_tls_print_certificate_error(hostname, fingerprint, tls->certificate_store->file);
 			
 			if (instance->VerifyChangedCertificate)
 				accept_certificate = instance->VerifyChangedCertificate(instance, subject, issuer, fingerprint, "");
@@ -912,54 +915,49 @@ BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostna
 	return verification_status;
 }
 
-void rdpudp_tls_print_certificate_error(char* hostname, char* fingerprint, char *hosts_file)
+void rdp_udp_tls_print_certificate_error(char* hostname, char* fingerprint, char *hosts_file)
 {
-	fprintf(stderr, "The host key for %s has changed\n", hostname);
-	fprintf(stderr, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
-	fprintf(stderr, "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n");
-	fprintf(stderr, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
-	fprintf(stderr, "IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\n");
-	fprintf(stderr, "Someone could be eavesdropping on you right now (man-in-the-middle attack)!\n");
-	fprintf(stderr, "It is also possible that a host key has just been changed.\n");
-	fprintf(stderr, "The fingerprint for the host key sent by the remote host is\n%s\n", fingerprint);
-	fprintf(stderr, "Please contact your system administrator.\n");
-	fprintf(stderr, "Add correct host key in %s to get rid of this message.\n", hosts_file);
-	fprintf(stderr, "Host key for %s has changed and you have requested strict checking.\n", hostname);
-	fprintf(stderr, "Host key verification failed.\n");
+	WLog_ERR(TAG,  "The host key for %s has changed", hostname);
+	WLog_ERR(TAG,  "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+	WLog_ERR(TAG,  "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @");
+	WLog_ERR(TAG,  "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+	WLog_ERR(TAG,  "IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!");
+	WLog_ERR(TAG,  "Someone could be eavesdropping on you right now (man-in-the-middle attack)!");
+	WLog_ERR(TAG,  "It is also possible that a host key has just been changed.");
+	WLog_ERR(TAG,  "The fingerprint for the host key sent by the remote host is%s", fingerprint);
+	WLog_ERR(TAG,  "Please contact your system administrator.");
+	WLog_ERR(TAG,  "Add correct host key in %s to get rid of this message.", hosts_file);
+	WLog_ERR(TAG,  "Host key for %s has changed and you have requested strict checking.", hostname);
+	WLog_ERR(TAG,  "Host key verification failed.");
 }
 
-void rdpudp_tls_print_certificate_name_mismatch_error(char* hostname, char* common_name, char** alt_names, int alt_names_count)
+void rdp_udp_tls_print_certificate_name_mismatch_error(char* hostname, char* common_name, char** alt_names, int alt_names_count)
 {
 	int index;
 
 	assert(NULL != hostname);
-	assert(NULL != common_name);
-	
-	fprintf(stderr, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
-	fprintf(stderr, "@           WARNING: CERTIFICATE NAME MISMATCH!           @\n");
-	fprintf(stderr, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
-	fprintf(stderr, "The hostname used for this connection (%s) \n", hostname);
-	fprintf(stderr, "does not match %s given in the certificate:\n", alt_names_count < 1 ? "the name" : "any of the names");
-	fprintf(stderr, "Common Name (CN):\n");
-	fprintf(stderr, "\t%s\n", common_name ? common_name : "no CN found in certificate");
+	WLog_ERR(TAG,  "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+	WLog_ERR(TAG,  "@           WARNING: CERTIFICATE NAME MISMATCH!           @");
+	WLog_ERR(TAG,  "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+	WLog_ERR(TAG,  "The hostname used for this connection (%s) ", hostname);
+	WLog_ERR(TAG,  "does not match %s given in the certificate:", alt_names_count < 1 ? "the name" : "any of the names");
+	WLog_ERR(TAG,  "Common Name (CN):");
+	WLog_ERR(TAG,  "\t%s", common_name ? common_name : "no CN found in certificate");
 
-	if (alt_names_count > 1)
+	if (alt_names_count > 0)
 	{
 		assert(NULL != alt_names);
-		fprintf(stderr, "Alternative names:\n");
-		if (alt_names_count > 1)
+		WLog_ERR(TAG,  "Alternative names:");
+		for (index = 0; index < alt_names_count; index++)
 		{
-			for (index = 0; index < alt_names_count; index++)
-			{
-				assert(alt_names[index]);
-				fprintf(stderr, "\t %s\n", alt_names[index]);
-			}
+			assert(alt_names[index]);
+			WLog_ERR(TAG,  "\t %s", alt_names[index]);
 		}
 	}
-	fprintf(stderr, "A valid certificate for the wrong name should NOT be trusted!\n");
+	WLog_ERR(TAG,  "A valid certificate for the wrong name should NOT be trusted!");
 }
 
-rdpUdpTls* rdpudp_tls_new(rdpSettings* settings)
+rdpUdpTls* rdp_udp_tls_new(rdpSettings* settings)
 {
 	rdpUdpTls* tls;
 
@@ -967,8 +965,7 @@ rdpUdpTls* rdpudp_tls_new(rdpSettings* settings)
 
 	if (tls)
 	{
-		SSL_load_error_strings();
-		SSL_library_init();
+		winpr_InitializeSSL(WINPR_SSL_INIT_DEFAULT);
 
 		tls->settings = settings;
 		tls->certificate_store = certificate_store_new(settings);
@@ -980,7 +977,7 @@ rdpUdpTls* rdpudp_tls_new(rdpSettings* settings)
 	return tls;
 }
 
-void rdpudp_tls_free(rdpUdpTls* tls)
+void rdp_udp_tls_free(rdpUdpTls* tls)
 {
 	if (tls)
 	{

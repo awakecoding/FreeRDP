@@ -24,13 +24,16 @@
 #include <assert.h>
 
 #include <winpr/crt.h>
+#include <winpr/ssl.h>
 #include <winpr/sspi.h>
 #include <winpr/stream.h>
 #include <winpr/winsock.h>
 
 #include "rdpudp_dtls.h"
 
-static CryptoCert rdpudp_dtls_get_certificate(rdpUdpDtls* dtls, BOOL peer)
+#define TAG FREERDP_TAG("core.udp.tls")
+
+static CryptoCert rdp_udp_dtls_get_certificate(rdpUdpDtls* dtls, BOOL peer)
 {
 	CryptoCert cert;
 	X509* server_cert;
@@ -42,7 +45,7 @@ static CryptoCert rdpudp_dtls_get_certificate(rdpUdpDtls* dtls, BOOL peer)
 
 	if (!server_cert)
 	{
-		fprintf(stderr, "rdpudp_dtls_get_certificate: failed to get the server TLS certificate\n");
+		fprintf(stderr, "rdp_udp_dtls_get_certificate: failed to get the server TLS certificate\n");
 		cert = NULL;
 	}
 	else
@@ -54,7 +57,7 @@ static CryptoCert rdpudp_dtls_get_certificate(rdpUdpDtls* dtls, BOOL peer)
 	return cert;
 }
 
-static void rdpudp_dtls_free_certificate(CryptoCert cert)
+static void rdp_udp_dtls_free_certificate(CryptoCert cert)
 {
 	X509_free(cert->px509);
 	free(cert);
@@ -62,7 +65,7 @@ static void rdpudp_dtls_free_certificate(CryptoCert cert)
 
 #define DTLS_SERVER_END_POINT	"dtls-server-end-point:"
 
-SecPkgContext_Bindings* rdpudp_dtls_get_channel_bindings(X509* cert)
+SecPkgContext_Bindings* rdp_udp_dtls_get_channel_bindings(X509* cert)
 {
 	int PrefixLength;
 	BYTE CertificateHash[32];
@@ -94,7 +97,7 @@ SecPkgContext_Bindings* rdpudp_dtls_get_channel_bindings(X509* cert)
 	return ContextBindings;
 }
 
-BOOL rdpudp_dtls_connect(rdpUdpDtls* dtls)
+BOOL rdp_udp_dtls_connect(rdpUdpDtls* dtls)
 {
 	CryptoCert cert;
 	long options = 0;
@@ -154,42 +157,42 @@ BOOL rdpudp_dtls_connect(rdpUdpDtls* dtls)
 	connection_status = SSL_connect(dtls->ssl);
 	if (connection_status <= 0)
 	{
-		if (rdpudp_dtls_print_error("SSL_connect", dtls->ssl, connection_status))
+		if (rdp_udp_dtls_print_error("SSL_connect", dtls->ssl, connection_status))
 		{
 			return FALSE;
 		}
 	}
 
-	cert = rdpudp_dtls_get_certificate(dtls, TRUE);
+	cert = rdp_udp_dtls_get_certificate(dtls, TRUE);
 	if (!cert)
 	{
-		fprintf(stderr, "rdpudp_dtls_connect: rdpudp_dtls_get_certificate failed to return the server certificate.\n");
+		fprintf(stderr, "rdp_udp_dtls_connect: rdp_udp_dtls_get_certificate failed to return the server certificate.\n");
 		return FALSE;
 	}
 
-	dtls->Bindings = rdpudp_dtls_get_channel_bindings(cert->px509);
+	dtls->Bindings = rdp_udp_dtls_get_channel_bindings(cert->px509);
 
 	if (!crypto_cert_get_public_key(cert, &dtls->PublicKey, &dtls->PublicKeyLength))
 	{
-		fprintf(stderr, "rdpudp_dtls_connect: crypto_cert_get_public_key failed to return the server public key.\n");
-		rdpudp_dtls_free_certificate(cert);
+		fprintf(stderr, "rdp_udp_dtls_connect: crypto_cert_get_public_key failed to return the server public key.\n");
+		rdp_udp_dtls_free_certificate(cert);
 		return FALSE;
 	}
 
-	if (!rdpudp_dtls_verify_certificate(dtls, cert, dtls->hostname, dtls->port))
+	if (!rdp_udp_dtls_verify_certificate(dtls, cert, dtls->hostname, dtls->port))
 	{
-		fprintf(stderr, "rdpudp_dtls_connect: certificate not trusted, aborting.\n");
-		rdpudp_dtls_disconnect(dtls);
-		rdpudp_dtls_free_certificate(cert);
+		fprintf(stderr, "rdp_udp_dtls_connect: certificate not trusted, aborting.\n");
+		rdp_udp_dtls_disconnect(dtls);
+		rdp_udp_dtls_free_certificate(cert);
 		return FALSE;
 	}
 
-	rdpudp_dtls_free_certificate(cert);
+	rdp_udp_dtls_free_certificate(cert);
 
 	return TRUE;
 }
 
-BOOL rdpudp_dtls_disconnect(rdpUdpDtls* dtls)
+BOOL rdp_udp_dtls_disconnect(rdpUdpDtls* dtls)
 {
 	if (!dtls)
 		return FALSE;
@@ -202,7 +205,7 @@ BOOL rdpudp_dtls_disconnect(rdpUdpDtls* dtls)
 	return TRUE;
 }
 
-static void rdpudp_dtls_errors(const char *prefix)
+static void rdp_udp_dtls_errors(const char *prefix)
 {
 	unsigned long error;
 
@@ -210,7 +213,7 @@ static void rdpudp_dtls_errors(const char *prefix)
 		fprintf(stderr, "%s: %s\n", prefix, ERR_error_string(error, NULL));
 }
 
-BOOL rdpudp_dtls_print_error(char* func, SSL* connection, int value)
+BOOL rdp_udp_dtls_print_error(char* func, SSL* connection, int value)
 {
 	switch (SSL_get_error(connection, value))
 	{
@@ -228,22 +231,22 @@ BOOL rdpudp_dtls_print_error(char* func, SSL* connection, int value)
 
 		case SSL_ERROR_SYSCALL:
 			fprintf(stderr, "%s: I/O error: %s (%d)\n", func, strerror(errno), errno);
-			rdpudp_dtls_errors(func);
+			rdp_udp_dtls_errors(func);
 			return TRUE;
 
 		case SSL_ERROR_SSL:
 			fprintf(stderr, "%s: Failure in SSL library (protocol error?)\n", func);
-			rdpudp_dtls_errors(func);
+			rdp_udp_dtls_errors(func);
 			return TRUE;
 
 		default:
 			fprintf(stderr, "%s: Unknown error\n", func);
-			rdpudp_dtls_errors(func);
+			rdp_udp_dtls_errors(func);
 			return TRUE;
 	}
 }
 
-BOOL rdpudp_dtls_match_hostname(char *pattern, int pattern_length, char *hostname)
+BOOL rdp_udp_dtls_match_hostname(char *pattern, int pattern_length, char *hostname)
 {
 	if (strlen(hostname) == pattern_length)
 	{
@@ -263,7 +266,7 @@ BOOL rdpudp_dtls_match_hostname(char *pattern, int pattern_length, char *hostnam
 	return FALSE;
 }
 
-BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hostname, int port)
+BOOL rdp_udp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hostname, int port)
 {
 	int match;
 	int index;
@@ -294,7 +297,7 @@ BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hos
 		
 		if (!bio)
 		{
-			fprintf(stderr, "rdpudp_dtls_verify_certificate: BIO_new() failure\n");
+			fprintf(stderr, "rdp_udp_dtls_verify_certificate: BIO_new() failure\n");
 			return FALSE;
 		}
 
@@ -302,7 +305,7 @@ BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hos
 
 		if (status < 0)
 		{
-			fprintf(stderr, "rdpudp_dtls_verify_certificate: PEM_write_bio_X509 failure: %d\n", status);
+			fprintf(stderr, "rdp_udp_dtls_verify_certificate: PEM_write_bio_X509 failure: %d\n", status);
 			return FALSE;
 		}
 		
@@ -314,7 +317,7 @@ BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hos
 		
 		if (status < 0)
 		{
-			fprintf(stderr, "rdpudp_dtls_verify_certificate: failed to read certificate\n");
+			fprintf(stderr, "rdp_udp_dtls_verify_certificate: failed to read certificate\n");
 			return FALSE;
 		}
 		
@@ -335,7 +338,7 @@ BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hos
 
 		if (status < 0)
 		{
-			fprintf(stderr, "rdpudp_dtls_verify_certificate: failed to read certificate\n");
+			fprintf(stderr, "rdp_udp_dtls_verify_certificate: failed to read certificate\n");
 			return FALSE;
 		}
 		
@@ -380,7 +383,7 @@ BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hos
 
 	if (common_name != NULL)
 	{
-		if (rdpudp_dtls_match_hostname(common_name, common_name_length, hostname))
+		if (rdp_udp_dtls_match_hostname(common_name, common_name_length, hostname))
 			hostname_match = TRUE;
 	}
 
@@ -390,7 +393,7 @@ BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hos
 	{
 		for (index = 0; index < alt_names_count; index++)
 		{
-			if (rdpudp_dtls_match_hostname(alt_names[index], alt_names_lengths[index], hostname))
+			if (rdp_udp_dtls_match_hostname(alt_names[index], alt_names_lengths[index], hostname))
 			{
 				hostname_match = TRUE;
 				break;
@@ -412,7 +415,7 @@ BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hos
 
 	/* if the certificate is valid but the certificate name does not match, warn user, do not accept */
 	if (certificate_status && !hostname_match)
-		rdpudp_dtls_print_certificate_name_mismatch_error(hostname, common_name, alt_names, alt_names_count);
+		rdp_udp_dtls_print_certificate_name_mismatch_error(hostname, common_name, alt_names, alt_names_count);
 
 	/* verification could not succeed with OpenSSL, use known_hosts file and prompt user for manual verification */
 
@@ -435,7 +438,7 @@ BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hos
 		{
 			/* no entry was found in known_hosts file, prompt user for manual verification */
 			if (!hostname_match)
-				rdpudp_dtls_print_certificate_name_mismatch_error(hostname, common_name, alt_names, alt_names_count);
+				rdp_udp_dtls_print_certificate_name_mismatch_error(hostname, common_name, alt_names, alt_names_count);
 
 			if (instance->VerifyCertificate)
 				accept_certificate = instance->VerifyCertificate(instance, subject, issuer, fingerprint);
@@ -455,7 +458,7 @@ BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hos
 		else if (match == -1)
 		{
 			/* entry was found in known_hosts file, but fingerprint does not match. ask user to use it */
-			rdpudp_dtls_print_certificate_error(hostname, fingerprint, dtls->certificate_store->file);
+			rdp_udp_dtls_print_certificate_error(hostname, fingerprint, dtls->certificate_store->file);
 			
 			if (instance->VerifyChangedCertificate)
 				accept_certificate = instance->VerifyChangedCertificate(instance, subject, issuer, fingerprint, "");
@@ -501,23 +504,23 @@ BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hos
 	return verification_status;
 }
 
-void rdpudp_dtls_print_certificate_error(char* hostname, char* fingerprint, char *hosts_file)
+void rdp_udp_dtls_print_certificate_error(char* hostname, char* fingerprint, char *hosts_file)
 {
-	fprintf(stderr, "The host key for %s has changed\n", hostname);
-	fprintf(stderr, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
-	fprintf(stderr, "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n");
-	fprintf(stderr, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
-	fprintf(stderr, "IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\n");
-	fprintf(stderr, "Someone could be eavesdropping on you right now (man-in-the-middle attack)!\n");
-	fprintf(stderr, "It is also possible that a host key has just been changed.\n");
-	fprintf(stderr, "The fingerprint for the host key sent by the remote host is\n%s\n", fingerprint);
-	fprintf(stderr, "Please contact your system administrator.\n");
-	fprintf(stderr, "Add correct host key in %s to get rid of this message.\n", hosts_file);
-	fprintf(stderr, "Host key for %s has changed and you have requested strict checking.\n", hostname);
-	fprintf(stderr, "Host key verification failed.\n");
+	WLog_ERR(TAG,  "The host key for %s has changed", hostname);
+	WLog_ERR(TAG,  "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+	WLog_ERR(TAG,  "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @");
+	WLog_ERR(TAG,  "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+	WLog_ERR(TAG,  "IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!");
+	WLog_ERR(TAG,  "Someone could be eavesdropping on you right now (man-in-the-middle attack)!");
+	WLog_ERR(TAG,  "It is also possible that a host key has just been changed.");
+	WLog_ERR(TAG,  "The fingerprint for the host key sent by the remote host is%s", fingerprint);
+	WLog_ERR(TAG,  "Please contact your system administrator.");
+	WLog_ERR(TAG,  "Add correct host key in %s to get rid of this message.", hosts_file);
+	WLog_ERR(TAG,  "Host key for %s has changed and you have requested strict checking.", hostname);
+	WLog_ERR(TAG,  "Host key verification failed.");
 }
 
-void rdpudp_dtls_print_certificate_name_mismatch_error(char* hostname, char* common_name, char** alt_names, int alt_names_count)
+void rdp_udp_dtls_print_certificate_name_mismatch_error(char* hostname, char* common_name, char** alt_names, int alt_names_count)
 {
 	int index;
 
@@ -547,7 +550,7 @@ void rdpudp_dtls_print_certificate_name_mismatch_error(char* hostname, char* com
 	fprintf(stderr, "A valid certificate for the wrong name should NOT be trusted!\n");
 }
 
-rdpUdpDtls* rdpudp_dtls_new(rdpSettings* settings)
+rdpUdpDtls* rdp_udp_dtls_new(rdpSettings* settings)
 {
 	rdpUdpDtls* dtls;
 
@@ -555,8 +558,7 @@ rdpUdpDtls* rdpudp_dtls_new(rdpSettings* settings)
 
 	if (dtls)
 	{
-		SSL_load_error_strings();
-		SSL_library_init();
+		winpr_InitializeSSL(WINPR_SSL_INIT_DEFAULT);
 
 		dtls->settings = settings;
 		dtls->certificate_store = certificate_store_new(settings);
@@ -565,7 +567,7 @@ rdpUdpDtls* rdpudp_dtls_new(rdpSettings* settings)
 	return dtls;
 }
 
-void rdpudp_dtls_free(rdpUdpDtls* dtls)
+void rdp_udp_dtls_free(rdpUdpDtls* dtls)
 {
 	if (dtls)
 	{

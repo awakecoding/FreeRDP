@@ -28,14 +28,15 @@
 #include <openssl/err.h>
 
 #include <freerdp/api.h>
+#include <freerdp/log.h>
 #include <freerdp/types.h>
 
 #include <freerdp/crypto/crypto.h>
 #include <freerdp/crypto/certificate.h>
 
-typedef struct rdpudp_dtls rdpUdpDtls;
+typedef struct rdp_udp_dtls rdpUdpDtls;
 
-struct rdpudp_dtls
+struct rdp_udp_dtls
 {
 	SSL* ssl;
 	BIO* bio;
@@ -51,20 +52,20 @@ struct rdpudp_dtls
 	int port;
 };
 
-FREERDP_API BOOL rdpudp_dtls_connect(rdpUdpDtls* dtls);
-FREERDP_API BOOL rdpudp_dtls_disconnect(rdpUdpDtls* dtls);
+FREERDP_API BOOL rdp_udp_dtls_connect(rdpUdpDtls* dtls);
+FREERDP_API BOOL rdp_udp_dtls_disconnect(rdpUdpDtls* dtls);
 
-FREERDP_API int rdpudp_dtls_read(rdpUdpDtls* dtls, BYTE* data, int length);
-FREERDP_API int rdpudp_dtls_write(rdpUdpDtls* dtls, BYTE* data, int length);
+FREERDP_API int rdp_udp_dtls_read(rdpUdpDtls* dtls, BYTE* data, int length);
+FREERDP_API int rdp_udp_dtls_write(rdpUdpDtls* dtls, BYTE* data, int length);
 
-FREERDP_API BOOL rdpudp_dtls_match_hostname(char *pattern, int pattern_length, char *hostname);
-FREERDP_API BOOL rdpudp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hostname, int port);
-FREERDP_API void rdpudp_dtls_print_certificate_error(char* hostname, char* fingerprint, char* hosts_file);
-FREERDP_API void rdpudp_dtls_print_certificate_name_mismatch_error(char* hostname, char* common_name, char** alt_names, int alt_names_count);
+FREERDP_API BOOL rdp_udp_dtls_match_hostname(char* pattern, int pattern_length, char *hostname);
+FREERDP_API BOOL rdp_udp_dtls_verify_certificate(rdpUdpDtls* dtls, CryptoCert cert, char* hostname, int port);
+FREERDP_API void rdp_udp_dtls_print_certificate_error(char* hostname, char* fingerprint, char* hosts_file);
+FREERDP_API void rdp_udp_dtls_print_certificate_name_mismatch_error(char* hostname, char* common_name, char** alt_names, int alt_names_count);
 
-FREERDP_API BOOL rdpudp_dtls_print_error(char* func, SSL* connection, int value);
+FREERDP_API BOOL rdp_udp_dtls_print_error(char* func, SSL* connection, int value);
 
-rdpUdpDtls* rdpudp_dtls_new(rdpSettings* settings);
-void rdpudp_dtls_free(rdpUdpDtls* dtls);
+rdpUdpDtls* rdp_udp_dtls_new(rdpSettings* settings);
+void rdp_udp_dtls_free(rdpUdpDtls* dtls);
 
 #endif /* __RDPUDP_DTLS_H */

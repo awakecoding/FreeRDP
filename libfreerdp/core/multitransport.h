@@ -34,7 +34,8 @@ typedef struct rdp_multitransport rdpMultitransport;
 #define RDPTUNNEL_ACTION_CREATERESPONSE		0x1
 #define RDPTUNNEL_ACTION_DATA			0x2
 
-typedef struct {
+struct _RDP_TUNNEL_HEADER
+{
 	BYTE action;
 	BYTE flags;
 	UINT16 payloadLength;
@@ -42,24 +43,32 @@ typedef struct {
 	BYTE subHeaderLength;
 	BYTE subHeaderType;
 	BYTE* subHeaderData;
-} RDP_TUNNEL_HEADER;
+};
+typedef struct _RDP_TUNNEL_HEADER RDP_TUNNEL_HEADER;
 
-typedef struct {
+struct _RDP_TUNNEL_CREATEREQUEST
+{
 	UINT32 requestID;
 	UINT32 reserved;
 	BYTE securityCookie[16];
-} RDP_TUNNEL_CREATEREQUEST;
+};
+typedef struct _RDP_TUNNEL_CREATEREQUEST RDP_TUNNEL_CREATEREQUEST;
 
-typedef struct {
+struct _RDP_TUNNEL_CREATERESPONSE
+{
 	UINT32 hrResponse;
-} RDP_TUNNEL_CREATERESPONSE;
+};
+typedef struct _RDP_TUNNEL_CREATERESPONSE RDP_TUNNEL_CREATERESPONSE;
 
-typedef struct {
+struct _RDP_TUNNEL_DATA
+{
 	BYTE* higherLayerDataPointer;
 	UINT16 higherLayerDataLength;
-} RDP_TUNNEL_DATA;
+};
+typedef struct _RDP_TUNNEL_DATA RDP_TUNNEL_DATA;
 
-typedef struct {
+struct _MULTITRANSPORT_PDU
+{
 	BYTE action;
 	BYTE flags;
 	BYTE subHeaderLength;
@@ -70,24 +79,26 @@ typedef struct {
 		RDP_TUNNEL_CREATERESPONSE tunnelCreateResponse;
 		RDP_TUNNEL_DATA tunnelData;
 	} u;
-} MULTITRANSPORT_PDU;
+};
+typedef struct _MULTITRANSPORT_PDU MULTITRANSPORT_PDU;
 
 /**
  * Tunnel definition
  */
-typedef struct {
-	rdpUdp* rdpudp;
+struct rdp_tunnel
+{
+	rdpUdp* udp;
 	UINT32 requestId;
 	UINT16 protocol;
 	BYTE securityCookie[16];
-} multitransportTunnel;
+};
+typedef struct rdp_tunnel rdpTunnel;
 
 struct rdp_multitransport
 {
 	rdpRdp* rdp;
-
-	void* udpRTunnel;	/* reliable tunnel */
-	void* udpLTunnel;	/* lossy tunnel */
+	void* udpRTunnel; /* reliable tunnel */
+	void* udpLTunnel; /* lossy tunnel */
 };
 
 int rdp_recv_multitransport_packet(rdpRdp* rdp, wStream* s);

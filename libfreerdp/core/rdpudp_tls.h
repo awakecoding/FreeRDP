@@ -28,6 +28,7 @@
 #include <openssl/err.h>
 
 #include <freerdp/api.h>
+#include <freerdp/log.h>
 #include <freerdp/types.h>
 
 #include <freerdp/crypto/crypto.h>
@@ -62,9 +63,9 @@
 #define TLS_ALERT_DESCRIPTION_NO_RENEGOTIATION		100
 #define TLS_ALERT_DESCRIPTION_UNSUPPORTED_EXTENSION	110
 
-typedef struct rdpudp_tls rdpUdpTls;
+typedef struct rdp_udp_tls rdpUdpTls;
 
-struct rdpudp_tls
+struct rdp_udp_tls
 {
 	SSL* ssl;
 	BIO* bio;
@@ -88,28 +89,28 @@ struct rdpudp_tls
 	int alertDescription;
 };
 
-FREERDP_API BOOL rdpudp_tls_connect(rdpUdpTls* tls);
-FREERDP_API BOOL rdpudp_tls_accept(rdpUdpTls* tls, const char* cert_file, const char* privatekey_file);
-FREERDP_API BOOL rdpudp_tls_disconnect(rdpUdpTls* tls);
+FREERDP_API BOOL rdp_udp_tls_connect(rdpUdpTls* tls);
+FREERDP_API BOOL rdp_udp_tls_accept(rdpUdpTls* tls, const char* cert_file, const char* privatekey_file);
+FREERDP_API BOOL rdp_udp_tls_disconnect(rdpUdpTls* tls);
 
-FREERDP_API int rdpudp_tls_decrypt(rdpUdpTls* tls, BYTE* data, int length);
-FREERDP_API int rdpudp_tls_encrypt(rdpUdpTls* tls, BYTE* data, int length);
+FREERDP_API int rdp_udp_tls_decrypt(rdpUdpTls* tls, BYTE* data, int length);
+FREERDP_API int rdp_udp_tls_encrypt(rdpUdpTls* tls, BYTE* data, int length);
 
-FREERDP_API int rdpudp_tls_read(rdpUdpTls* tls, BYTE* data, int length);
-FREERDP_API int rdpudp_tls_write(rdpUdpTls* tls, BYTE* data, int length);
+FREERDP_API int rdp_udp_tls_read(rdpUdpTls* tls, BYTE* data, int length);
+FREERDP_API int rdp_udp_tls_write(rdpUdpTls* tls, BYTE* data, int length);
 
-FREERDP_API int rdpudp_tls_get_last_error(rdpUdpTls* tls);
+FREERDP_API int rdp_udp_tls_get_last_error(rdpUdpTls* tls);
 
-FREERDP_API int rdpudp_tls_set_alert_code(rdpUdpTls* tls, int level, int description);
+FREERDP_API int rdp_udp_tls_set_alert_code(rdpUdpTls* tls, int level, int description);
 
-FREERDP_API BOOL rdpudp_tls_match_hostname(char *pattern, int pattern_length, char *hostname);
-FREERDP_API BOOL rdpudp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostname, int port);
-FREERDP_API void rdpudp_tls_print_certificate_error(char* hostname, char* fingerprint, char* hosts_file);
-FREERDP_API void rdpudp_tls_print_certificate_name_mismatch_error(char* hostname, char* common_name, char** alt_names, int alt_names_count);
+FREERDP_API BOOL rdp_udp_tls_match_hostname(char *pattern, int pattern_length, char *hostname);
+FREERDP_API BOOL rdp_udp_tls_verify_certificate(rdpUdpTls* tls, CryptoCert cert, char* hostname, int port);
+FREERDP_API void rdp_udp_tls_print_certificate_error(char* hostname, char* fingerprint, char* hosts_file);
+FREERDP_API void rdp_udp_tls_print_certificate_name_mismatch_error(char* hostname, char* common_name, char** alt_names, int alt_names_count);
 
-FREERDP_API BOOL rdpudp_tls_print_error(char* func, SSL* connection, int value);
+FREERDP_API BOOL rdp_udp_tls_print_error(char* func, SSL* connection, int value);
 
-FREERDP_API rdpUdpTls* rdpudp_tls_new(rdpSettings* settings);
-FREERDP_API void rdpudp_tls_free(rdpUdpTls* tls);
+FREERDP_API rdpUdpTls* rdp_udp_tls_new(rdpSettings* settings);
+FREERDP_API void rdp_udp_tls_free(rdpUdpTls* tls);
 
 #endif /* __RDPUDP_TLS_H */
