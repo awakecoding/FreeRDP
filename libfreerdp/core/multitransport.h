@@ -97,8 +97,8 @@ typedef struct rdp_tunnel rdpTunnel;
 struct rdp_multitransport
 {
 	rdpRdp* rdp;
-	void* udpRTunnel; /* reliable tunnel */
-	void* udpLTunnel; /* lossy tunnel */
+	rdpTunnel* udpRTunnel; /* reliable tunnel */
+	rdpTunnel* udpLTunnel; /* lossy tunnel */
 };
 
 int rdp_recv_multitransport_packet(rdpRdp* rdp, wStream* s);

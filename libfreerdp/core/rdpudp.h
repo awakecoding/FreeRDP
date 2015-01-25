@@ -20,7 +20,7 @@
 #ifndef __RDPUDP_H
 #define __RDPUDP_H
 
-typedef struct rdpudp rdpUdp;
+typedef struct rdp_udp rdpUdp;
 
 #include "rdp.h"
 
@@ -80,8 +80,8 @@ struct _RDPUDP_FEC_PAYLOAD_HEADER
 {
 	UINT32 snCoded;
 	UINT32 snSourceStart;
-	UINT16 uSourceRange;
-	UINT16 uFecIndex;
+	BYTE uSourceRange;
+	BYTE uFecIndex;
 	UINT16 uPadding;
 };
 typedef struct _RDPUDP_FEC_PAYLOAD_HEADER RDPUDP_FEC_PAYLOAD_HEADER;
@@ -123,6 +123,7 @@ typedef struct _RDPUDP_ACK_VECTOR_HEADER RDPUDP_ACK_VECTOR_HEADER;
 struct _RDPUDP_CORRELATION_ID_PAYLOAD
 {
 	BYTE uCorrelationId[16];
+	BYTE uReserved[16];
 };
 typedef struct _RDPUDP_CORRELATION_ID_PAYLOAD RDPUDP_CORRELATION_ID_PAYLOAD;
 
@@ -143,7 +144,7 @@ struct _RDPUDP_PDU
 };
 typedef struct _RDPUDP_PDU RDPUDP_PDU;
 
-struct rdpudp
+struct rdp_udp
 {
 	rdpRdp* rdp;
 
@@ -158,12 +159,12 @@ struct rdpudp
 	int state;
 
 	void* callbackData;
-	void (*onDisconnected)(rdpUdp* rdpudp);
-	void (*onConnecting)(rdpUdp* rdpudp);
-	void (*onConnected)(rdpUdp* rdpudp);
-	void (*onSecuring)(rdpUdp* rdpudp);
-	void (*onSecured)(rdpUdp* rdpudp);
-	void (*onDataReceived)(rdpUdp* rdpudp, BYTE* data, int size);
+	void (*onDisconnected)(rdpUdp* udp);
+	void (*onConnecting)(rdpUdp* udp);
+	void (*onConnected)(rdpUdp* udp);
+	void (*onSecuring)(rdpUdp* udp);
+	void (*onSecured)(rdpUdp* udp);
+	void (*onDataReceived)(rdpUdp* udp, BYTE* data, int size);
 
 	DWORD retransmitTimer;
 	int retransmitCount;
@@ -186,10 +187,10 @@ struct rdpudp
 	UINT16 serverReceiveWindowSize;
 };
 
-BOOL rdp_udp_init(rdpUdp* rdpudp, UINT16 protocol);
+BOOL rdp_udp_init(rdpUdp* udp, UINT16 protocol);
 
-int rdp_udp_read(rdpUdp* rdpudp, BYTE* data, int size);
-int rdp_udp_write(rdpUdp* rdpudp, BYTE* data, int size);
+int rdp_udp_read(rdpUdp* udp, BYTE* data, int size);
+int rdp_udp_write(rdpUdp* udp, BYTE* data, int size);
 
 rdpUdp* rdp_udp_new(rdpRdp* rdp);
 void rdp_udp_free(rdpUdp* rdpUdp);

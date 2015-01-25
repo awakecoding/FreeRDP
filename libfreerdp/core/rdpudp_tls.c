@@ -115,15 +115,17 @@ void rdp_udp_tls_ssl_info_callback(const SSL* ssl, int type, int val)
 
 static BOOL rdp_udp_tls_init(rdpUdpTls* tls)
 {
-	long options = 0;
 	int status;
+	long options = 0;
 
 	switch (tls->state)
 	{
 		case TLS_STATE_UNINITIALIZED:
 			break;
+
 		case TLS_STATE_ERROR:
 			return FALSE;
+
 		default:
 			return TRUE;
 	}
@@ -178,31 +180,39 @@ static BOOL rdp_udp_tls_init(rdpUdpTls* tls)
 	}
 
 	tls->bioRead = BIO_new(BIO_s_mem());
+
 	if (!tls->bioRead)
 	{
 		fprintf(stderr, "BIO_new failed\n");
 		return FALSE;
 	}
-	tls->readBuffer = (BYTE*)malloc(TLS_BUFFER_SIZE);
+
+	tls->readBuffer = (BYTE*) malloc(TLS_BUFFER_SIZE);
+
 	if (!tls->readBuffer)
 	{
 		fprintf(stderr, "malloc failed\n");
 		return FALSE;
 	}
+
 	status = BIO_set_write_buf_size(tls->bioRead, TLS_BUFFER_SIZE);
 
 	tls->bioWrite = BIO_new(BIO_s_mem());
+
 	if (!tls->bioWrite)
 	{
 		fprintf(stderr, "BIO_new failed\n");
 		return FALSE;
 	}
-	tls->writeBuffer = (BYTE*)malloc(TLS_BUFFER_SIZE);
+
+	tls->writeBuffer = (BYTE*) malloc(TLS_BUFFER_SIZE);
+
 	if (!tls->writeBuffer)
 	{
 		fprintf(stderr, "malloc failed\n");
 		return FALSE;
 	}
+
 	status = BIO_set_write_buf_size(tls->bioWrite, TLS_BUFFER_SIZE);
 
 	BIO_make_bio_pair(tls->bioRead, tls->bioWrite);
@@ -231,7 +241,8 @@ BOOL rdp_udp_tls_connect(rdpUdpTls* tls)
 	{
 		error = SSL_get_error(tls->ssl, status);
 
-		fprintf(stderr, "rdp_udp_tls_connect: status: %d error: 0x%08X\n", status, error);
+		if (error != SSL_ERROR_WANT_READ)
+			fprintf(stderr, "rdp_udp_tls_connect: status: %d error: 0x%08X\n", status, error);
 
 		tls->lastError = error;
 

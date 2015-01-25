@@ -27,64 +27,23 @@
 
 #define TAG FREERDP_TAG("core.udp")
 
-/**
- * Utility Functions
- */
-static wStream* rdp_udp_packet_init()
-{
-	BYTE* buffer;
-
-	buffer = (BYTE*) malloc(RDPUDP_MTU_SIZE);
-
-	return buffer ? Stream_New(buffer, RDPUDP_MTU_SIZE) : NULL;
-}
-
-static void rdp_udp_dump_packet(wStream* s)
-{
-	BYTE* pduptr = Stream_Buffer(s);
-	int pdulen = Stream_Length(s);
-
-	while (pdulen > 0)
-	{
-		int size = (pdulen < 16 ? pdulen : 16);
-		int i;
-
-		for (i = 0; i < 16; i++)
-		{
-			fprintf(stderr, (i < size) ? "%02X " : "   ", pduptr[i]);
-		}
-		fprintf(stderr, " ");
-		for (i = 0; i < size; i++)
-		{
-			fprintf(stderr, "%c", isprint(pduptr[i]) ? pduptr[i] : '.');
-		}
-		fprintf(stderr, "\n");
-
-		pduptr += size;
-		pdulen -= size;
-	}
-}
-
 static BOOL rdp_udp_send_packet(rdpUdp* udp, wStream* s)
 {
-	BYTE* pduptr;
-	int pdulen;
 	int status;
+	int pduLen;
+	BYTE* pduPtr;
 
 	if (!s)
 		return FALSE;
 
 	Stream_SealLength(s);
 
-	pduptr = Stream_Buffer(s);
-	pdulen = Stream_Length(s);
+	pduPtr = Stream_Buffer(s);
+	pduLen = Stream_Length(s);
 
-	status = send(udp->sockfd, pduptr, pdulen, 0);
-	WLog_DBG(TAG, "send pduptr=%p, pdulen=%d, status=%d", pduptr, pdulen, status);
+	status = send(udp->sockfd, pduPtr, pduLen, 0);
 
-	rdp_udp_dump_packet(s);
-
-	return status == pdulen ? TRUE : FALSE;		
+	return (status == pduLen) ? TRUE : FALSE;
 }
 
 /**
@@ -97,12 +56,10 @@ static int rdp_udp_ack_vector_header_padding(UINT16 uAckVectorSize)
 	return padding[uAckVectorSize & 0x3];
 }
 
-static void rdp_udp_dump_fec_header(RDPUDP_FEC_HEADER* fecHeader)
+static void rdp_udp_trace_fec_header(RDPUDP_FEC_HEADER* fecHeader)
 {
-	fprintf(stderr, "RDPUDP_FEC_HEADER\n");
-	fprintf(stderr, ".snSourceAck=%u\n", fecHeader->snSourceAck);
-	fprintf(stderr, ".uReceiveWindowSize=%u\n", fecHeader->uReceiveWindowSize);
-	fprintf(stderr, ".uFlags=%u\n", fecHeader->uFlags);
+	WLog_DBG(TAG, "RDPUDP_FEC_HEADER: snSourceAck: 0x%04X uReceiveWindowSize: 0x%04X uFlags: 0x%04X",
+			fecHeader->snSourceAck, fecHeader->uReceiveWindowSize, fecHeader->uFlags);
 }
 
 static BOOL rdp_udp_read_fec_header(wStream* s, RDPUDP_FEC_HEADER* fecHeader)
@@ -110,66 +67,63 @@ static BOOL rdp_udp_read_fec_header(wStream* s, RDPUDP_FEC_HEADER* fecHeader)
 	if (Stream_GetRemainingLength(s) < 8)
 		return FALSE;
 
-	Stream_Read_UINT32_BE(s, fecHeader->snSourceAck);
-	Stream_Read_UINT16_BE(s, fecHeader->uReceiveWindowSize);
-	Stream_Read_UINT16_BE(s, fecHeader->uFlags);
+	Stream_Read_UINT32_BE(s, fecHeader->snSourceAck); /* snSourceAck (4 bytes) */
+	Stream_Read_UINT16_BE(s, fecHeader->uReceiveWindowSize); /* uReceiveWindowSize (2 bytes) */
+	Stream_Read_UINT16_BE(s, fecHeader->uFlags); /* uFlags (2 bytes) */
 
-	rdp_udp_dump_fec_header(fecHeader);
+	rdp_udp_trace_fec_header(fecHeader);
 
 	return TRUE;
 }
 
 static void rdp_udp_write_fec_header(wStream* s, RDPUDP_FEC_HEADER* fecHeader)
 {
-	Stream_Write_UINT32_BE(s, fecHeader->snSourceAck);
-	Stream_Write_UINT16_BE(s, fecHeader->uReceiveWindowSize);
-	Stream_Write_UINT16_BE(s, fecHeader->uFlags);
+	Stream_Write_UINT32_BE(s, fecHeader->snSourceAck); /* snSourceAck (4 bytes) */
+	Stream_Write_UINT16_BE(s, fecHeader->uReceiveWindowSize); /* uReceiveWindowSize (2 bytes) */
+	Stream_Write_UINT16_BE(s, fecHeader->uFlags); /* uFlags (2 bytes) */
 
-	rdp_udp_dump_fec_header(fecHeader);
+	rdp_udp_trace_fec_header(fecHeader);
 }
 
-static void rdp_udp_dump_fec_payload_header(RDPUDP_FEC_PAYLOAD_HEADER* fecPayloadHeader)
+static void rdp_udp_trace_fec_payload_header(RDPUDP_FEC_PAYLOAD_HEADER* fecPayloadHeader)
 {
-	fprintf(stderr, "RDPUDP_FEC_PAYLOAD_HEADER\n");
-	fprintf(stderr, ".snCoded=%u\n", fecPayloadHeader->snCoded);
-	fprintf(stderr, ".snSourceStart=%u\n", fecPayloadHeader->snSourceStart);
-	fprintf(stderr, ".uSourceRange=%u\n", fecPayloadHeader->uSourceRange);
-	fprintf(stderr, ".uFecIndex=%u\n", fecPayloadHeader->uFecIndex);
-	fprintf(stderr, ".uPadding=%u\n", fecPayloadHeader->uPadding);
+	WLog_DBG(TAG, "RDPUDP_FEC_PAYLOAD_HEADER: snCoded: 0x%04X snSourceStart: 0x%04X "
+			"uSourceRange: %d uFecIndex: %d\n",
+			fecPayloadHeader->snCoded, fecPayloadHeader->snSourceStart,
+			fecPayloadHeader->uSourceRange, fecPayloadHeader->uFecIndex);
 }
 
 static BOOL rdp_udp_read_fec_payload_header(wStream* s, RDPUDP_FEC_PAYLOAD_HEADER* fecPayloadHeader)
 {
-	if (Stream_GetRemainingLength(s) < 14)
+	if (Stream_GetRemainingLength(s) < 12)
 		return FALSE;
 
-	Stream_Read_UINT32_BE(s, fecPayloadHeader->snCoded);
-	Stream_Read_UINT32_BE(s, fecPayloadHeader->snSourceStart);
-	Stream_Read_UINT16_BE(s, fecPayloadHeader->uSourceRange);
-	Stream_Read_UINT16_BE(s, fecPayloadHeader->uFecIndex);
-	Stream_Read_UINT16_BE(s, fecPayloadHeader->uPadding);
+	Stream_Read_UINT32_BE(s, fecPayloadHeader->snCoded); /* snCoded (4 bytes) */
+	Stream_Read_UINT32_BE(s, fecPayloadHeader->snSourceStart); /* snSourceStart (4 bytes) */
+	Stream_Read_UINT8(s, fecPayloadHeader->uSourceRange); /* uSourceRange (1 byte) */
+	Stream_Read_UINT8(s, fecPayloadHeader->uFecIndex); /* uFecIndex (1 byte) */
+	Stream_Read_UINT16_BE(s, fecPayloadHeader->uPadding); /* uPadding (2 bytes) */
 
-	rdp_udp_dump_fec_payload_header(fecPayloadHeader);
+	rdp_udp_trace_fec_payload_header(fecPayloadHeader);
 
 	return TRUE;
 }
 
 void rdp_udp_write_fec_payload_header(wStream* s, RDPUDP_FEC_PAYLOAD_HEADER* fecPayloadHeader)
 {
-	Stream_Write_UINT32_BE(s, fecPayloadHeader->snCoded);
-	Stream_Write_UINT32_BE(s, fecPayloadHeader->snSourceStart);
-	Stream_Write_UINT16_BE(s, fecPayloadHeader->uSourceRange);
-	Stream_Write_UINT16_BE(s, fecPayloadHeader->uFecIndex);
-	Stream_Write_UINT16_BE(s, fecPayloadHeader->uPadding);
+	Stream_Write_UINT32_BE(s, fecPayloadHeader->snCoded); /* snCoded (4 bytes) */
+	Stream_Write_UINT32_BE(s, fecPayloadHeader->snSourceStart); /* snSourceStart (4 bytes) */
+	Stream_Write_UINT8(s, fecPayloadHeader->uSourceRange); /* uSourceRange (1 byte) */
+	Stream_Write_UINT8(s, fecPayloadHeader->uFecIndex); /* uFecIndex (1 byte) */
+	Stream_Write_UINT16_BE(s, fecPayloadHeader->uPadding); /* uPadding (2 bytes) */
 
-	rdp_udp_dump_fec_payload_header(fecPayloadHeader);
+	rdp_udp_trace_fec_payload_header(fecPayloadHeader);
 }
 
-static void rdp_udp_dump_source_payload_header(RDPUDP_SOURCE_PAYLOAD_HEADER* sourcePayloadHeader)
+static void rdp_udp_trace_source_payload_header(RDPUDP_SOURCE_PAYLOAD_HEADER* sourcePayloadHeader)
 {
-	fprintf(stderr, "RDPUDP_SOURCE_PAYLOAD_HEADER\n");
-	fprintf(stderr, ".snCoded=%u\n", sourcePayloadHeader->snCoded);
-	fprintf(stderr, ".snSourceStart=%u\n", sourcePayloadHeader->snSourceStart);
+	WLog_DBG(TAG, "RDPUDP_SOURCE_PAYLOAD_HEADER: snCodec: 0x%04X snSourceStart: 0x%04X",
+			sourcePayloadHeader->snCoded, sourcePayloadHeader->snSourceStart);
 }
 
 static BOOL rdp_udp_read_source_payload_header(wStream* s, RDPUDP_SOURCE_PAYLOAD_HEADER* sourcePayloadHeader)
@@ -177,28 +131,28 @@ static BOOL rdp_udp_read_source_payload_header(wStream* s, RDPUDP_SOURCE_PAYLOAD
 	if (Stream_GetRemainingLength(s) < 8)
 		return FALSE;
 
-	Stream_Read_UINT32_BE(s, sourcePayloadHeader->snCoded);
-	Stream_Read_UINT32_BE(s, sourcePayloadHeader->snSourceStart);
+	Stream_Read_UINT32_BE(s, sourcePayloadHeader->snCoded); /* snCoded (4 bytes) */
+	Stream_Read_UINT32_BE(s, sourcePayloadHeader->snSourceStart); /* snSourceStart (4 bytes) */
 
-	rdp_udp_dump_source_payload_header(sourcePayloadHeader);
+	rdp_udp_trace_source_payload_header(sourcePayloadHeader);
 
 	return TRUE;
 }
 
 static void rdp_udp_write_source_payload_header(wStream* s, RDPUDP_SOURCE_PAYLOAD_HEADER* sourcePayloadHeader)
 {
-	Stream_Write_UINT32_BE(s, sourcePayloadHeader->snCoded);
-	Stream_Write_UINT32_BE(s, sourcePayloadHeader->snSourceStart);
+	Stream_Write_UINT32_BE(s, sourcePayloadHeader->snCoded); /* snCoded (4 bytes) */
+	Stream_Write_UINT32_BE(s, sourcePayloadHeader->snSourceStart); /* snSourceStart (4 bytes) */
 
-	rdp_udp_dump_source_payload_header(sourcePayloadHeader);
+	rdp_udp_trace_source_payload_header(sourcePayloadHeader);
 }
 
-static void rdp_udp_dump_syndata_payload(RDPUDP_SYNDATA_PAYLOAD* syndataPayload)
+static void rdp_udp_trace_syndata_payload(RDPUDP_SYNDATA_PAYLOAD* syndataPayload)
 {
-	fprintf(stderr, "RDPUDP_SYNDATA_PAYLOAD\n");
-	fprintf(stderr, ".snInitialSequenceNumber=%u\n", syndataPayload->snInitialSequenceNumber);
-	fprintf(stderr, ".uUpStreamMtu=%u\n", syndataPayload->uUpStreamMtu);
-	fprintf(stderr, ".uDownStreamMtu=%u\n", syndataPayload->uDownStreamMtu);
+	WLog_DBG(TAG, "RDPUDP_SYNDATA_PAYLOAD: snInitialSequenceNumber: 0x%04X "
+			"uUpStreamMtu: 0x%04X uDownStreamMtu: 0x%04X",
+			syndataPayload->snInitialSequenceNumber,
+			syndataPayload->uUpStreamMtu, syndataPayload->uDownStreamMtu);
 }
 
 static BOOL rdp_udp_read_syndata_payload(wStream* s, RDPUDP_SYNDATA_PAYLOAD* syndataPayload)
@@ -206,28 +160,28 @@ static BOOL rdp_udp_read_syndata_payload(wStream* s, RDPUDP_SYNDATA_PAYLOAD* syn
 	if (Stream_GetRemainingLength(s) < 8)
 		return FALSE;
 
-	Stream_Read_UINT32_BE(s, syndataPayload->snInitialSequenceNumber);
-	Stream_Read_UINT16_BE(s, syndataPayload->uUpStreamMtu);
-	Stream_Read_UINT16_BE(s, syndataPayload->uDownStreamMtu);
+	Stream_Read_UINT32_BE(s, syndataPayload->snInitialSequenceNumber); /* snInitialSequenceNumber (4 bytes) */
+	Stream_Read_UINT16_BE(s, syndataPayload->uUpStreamMtu); /* uUpStreamMtu (2 bytes) */
+	Stream_Read_UINT16_BE(s, syndataPayload->uDownStreamMtu); /* uDownStreamMtu (2 bytes) */
 
-	rdp_udp_dump_syndata_payload(syndataPayload);
+	rdp_udp_trace_syndata_payload(syndataPayload);
 
 	return TRUE;
 }
 
 static void rdp_udp_write_syndata_payload(wStream* s, RDPUDP_SYNDATA_PAYLOAD* syndataPayload)
 {
-	Stream_Write_UINT32_BE(s, syndataPayload->snInitialSequenceNumber);
-	Stream_Write_UINT16_BE(s, syndataPayload->uUpStreamMtu);
-	Stream_Write_UINT16_BE(s, syndataPayload->uDownStreamMtu);
+	Stream_Write_UINT32_BE(s, syndataPayload->snInitialSequenceNumber); /* snInitialSequenceNumber (4 bytes) */
+	Stream_Write_UINT16_BE(s, syndataPayload->uUpStreamMtu); /* uUpStreamMtu (2 bytes) */
+	Stream_Write_UINT16_BE(s, syndataPayload->uDownStreamMtu); /* uDownStreamMtu (2 bytes) */
 
-	rdp_udp_dump_syndata_payload(syndataPayload);
+	rdp_udp_trace_syndata_payload(syndataPayload);
 }
 
-static void rdp_udp_dump_ack_of_ackvector_header(RDPUDP_ACK_OF_ACKVECTOR_HEADER* ackOfAckVectorHeader)
+static void rdp_udp_trace_ack_of_ackvector_header(RDPUDP_ACK_OF_ACKVECTOR_HEADER* ackOfAckVectorHeader)
 {
-	fprintf(stderr, "RDPUDP_ACK_OF_ACKVECTOR_HEADER\n");
-	fprintf(stderr, ".snAckOfAcksSequNum=%u\n", ackOfAckVectorHeader->snAckOfAcksSeqNum);
+	WLog_DBG(TAG, "RDPUDP_ACK_OF_ACKVECTOR_HEADER: snAckOfAcksSeqNum: 0x%04X",
+			ackOfAckVectorHeader->snAckOfAcksSeqNum);
 }
 
 static BOOL rdp_udp_read_ack_of_ackvector_header(wStream* s, RDPUDP_ACK_OF_ACKVECTOR_HEADER* ackOfAckVectorHeader)
@@ -235,24 +189,24 @@ static BOOL rdp_udp_read_ack_of_ackvector_header(wStream* s, RDPUDP_ACK_OF_ACKVE
 	if (Stream_GetRemainingLength(s) < 4)
 		return FALSE;
 
-	Stream_Read_UINT32_BE(s, ackOfAckVectorHeader->snAckOfAcksSeqNum);
+	Stream_Read_UINT32_BE(s, ackOfAckVectorHeader->snAckOfAcksSeqNum); /* snAckOfAcksSeqNum (4 bytes) */
 
-	rdp_udp_dump_ack_of_ackvector_header(ackOfAckVectorHeader);
+	rdp_udp_trace_ack_of_ackvector_header(ackOfAckVectorHeader);
 
 	return TRUE;
 }
 
 void rdp_udp_write_ack_of_ackvector_header(wStream *s, RDPUDP_ACK_OF_ACKVECTOR_HEADER* ackOfAckVectorHeader)
 {
-	Stream_Write_UINT32_BE(s, ackOfAckVectorHeader->snAckOfAcksSeqNum);
+	Stream_Write_UINT32_BE(s, ackOfAckVectorHeader->snAckOfAcksSeqNum); /* snAckOfAcksSeqNum (4 bytes) */
 
-	rdp_udp_dump_ack_of_ackvector_header(ackOfAckVectorHeader);
+	rdp_udp_trace_ack_of_ackvector_header(ackOfAckVectorHeader);
 }
 
-static void rdp_udp_dump_ack_vector_header(RDPUDP_ACK_VECTOR_HEADER* ackVectorHeader)
+static void rdp_udp_trace_ack_vector_header(RDPUDP_ACK_VECTOR_HEADER* ackVectorHeader)
 {
-	fprintf(stderr, "RDPUDP_ACK_VECTOR_HEADER\n");
-	fprintf(stderr, ".uAckVectorSize=%u\n", ackVectorHeader->uAckVectorSize);
+	WLog_DBG(TAG, "RDPUDP_ACK_VECTOR_HEADER: uAckVectorSize: 0x%04X",
+			ackVectorHeader->uAckVectorSize);
 }
 
 static BOOL rdp_udp_read_ack_vector_header(wStream* s, RDPUDP_ACK_VECTOR_HEADER* ackVectorHeader)
@@ -262,7 +216,7 @@ static BOOL rdp_udp_read_ack_vector_header(wStream* s, RDPUDP_ACK_VECTOR_HEADER*
 	if (Stream_GetRemainingLength(s) < 2)
 		return FALSE;
 
-	Stream_Read_UINT16_BE(s, ackVectorHeader->uAckVectorSize);
+	Stream_Read_UINT16_BE(s, ackVectorHeader->uAckVectorSize); /* uAckVectorSize (2 bytes) */
 
 	if (Stream_GetRemainingLength(s) < ackVectorHeader->uAckVectorSize)
 		return FALSE;
@@ -280,7 +234,7 @@ static BOOL rdp_udp_read_ack_vector_header(wStream* s, RDPUDP_ACK_VECTOR_HEADER*
 		Stream_Seek(s, padding);
 	}
 
-	rdp_udp_dump_ack_vector_header(ackVectorHeader);
+	rdp_udp_trace_ack_vector_header(ackVectorHeader);
 
 	return TRUE;
 }
@@ -289,7 +243,8 @@ static void rdp_udp_write_ack_vector_header(wStream* s, RDPUDP_ACK_VECTOR_HEADER
 {
 	int padding;
 
-	Stream_Write_UINT16_BE(s, ackVectorHeader->uAckVectorSize);
+	Stream_Write_UINT16_BE(s, ackVectorHeader->uAckVectorSize); /* uAckVectorSize (2 bytes) */
+
 	Stream_Write(s, ackVectorHeader->AckVectorElement, ackVectorHeader->uAckVectorSize);
 
 	/* Pad the structure on a DWORD boundary. */
@@ -298,39 +253,46 @@ static void rdp_udp_write_ack_vector_header(wStream* s, RDPUDP_ACK_VECTOR_HEADER
 	if (padding > 0)
 		Stream_Zero(s, padding);
 
-	rdp_udp_dump_ack_vector_header(ackVectorHeader);
+	rdp_udp_trace_ack_vector_header(ackVectorHeader);
 }
 
-static void rdp_udp_dump_correlation_id_payload(RDPUDP_CORRELATION_ID_PAYLOAD* correlationIdPayload)
+static void rdp_udp_trace_correlation_id_payload(RDPUDP_CORRELATION_ID_PAYLOAD* correlationIdPayload)
 {
-	fprintf(stderr, "RDPUDP_CORRELATION_ID_PAYLOAD\n");
-	fprintf(stderr, ".uCorrelationId=xxx\n");
+	BYTE* p = correlationIdPayload->uCorrelationId;
+
+	WLog_DBG(TAG, "RDPUDP_CORRELATION_ID_PAYLOAD: uCorrelationId: ",
+			"%02X %02X %02X %02X %02X %02X %02X %02X"
+			"%02X %02X %02X %02X %02X %02X %02X %02X",
+			p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7],
+			p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15]);
 }
 
 BOOL rdp_udp_read_correlation_id_payload(wStream* s, RDPUDP_CORRELATION_ID_PAYLOAD* correlationIdPayload)
 {
-	if (Stream_GetRemainingLength(s) < 16)
+	if (Stream_GetRemainingLength(s) < 32)
 		return FALSE;
 
-	Stream_Read(s, correlationIdPayload->uCorrelationId, 16);
+	Stream_Read(s, correlationIdPayload->uCorrelationId, 16); /* uCorrelationId (16 bytes) */
+	Stream_Read(s, correlationIdPayload->uReserved, 16); /* uReserved (16 bytes) */
 
-	rdp_udp_dump_correlation_id_payload(correlationIdPayload);
+	rdp_udp_trace_correlation_id_payload(correlationIdPayload);
 
 	return TRUE;
 }
 
 static void rdp_udp_write_correlation_id_payload(wStream* s, RDPUDP_CORRELATION_ID_PAYLOAD* correlationIdPayload)
 {
-	Stream_Write(s, correlationIdPayload->uCorrelationId, 16);
+	ZeroMemory(correlationIdPayload->uReserved, 16);
 
-	rdp_udp_dump_correlation_id_payload(correlationIdPayload);
+	Stream_Write(s, correlationIdPayload->uCorrelationId, 16); /* uCorrelationId (16 bytes) */
+	Stream_Write(s, correlationIdPayload->uReserved, 16); /* uReserved (16 bytes) */
+
+	rdp_udp_trace_correlation_id_payload(correlationIdPayload);
 }
 
 static BOOL rdp_udp_decode_pdu(wStream *s, RDPUDP_PDU* pdu)
 {
 	ZeroMemory(pdu, sizeof(RDPUDP_PDU));
-
-	rdp_udp_dump_packet(s);
 
 	/* Parse the RDPUDP_FEC_HEADER. */
 	if (!rdp_udp_read_fec_header(s, &pdu->fecHeader))
@@ -410,7 +372,7 @@ wStream* rdp_udp_encode_pdu(RDPUDP_PDU* pdu)
 {
 	wStream* s;
 
-	s = rdp_udp_packet_init();
+	s = Stream_New(NULL, RDPUDP_MTU_SIZE);
 
 	if (!s)
 		return NULL;
@@ -642,9 +604,10 @@ static BOOL rdp_udp_process_acks(rdpUdp* udp, RDPUDP_PDU* pdu)
 static void rdp_udp_process_data(rdpUdp* udp, RDPUDP_PDU* inputPdu)
 {
 	int status;
+	UINT16 flags;
+	UINT16 ackVectorSize;
+	BYTE ackVectorElement[1];
 	BYTE decryptedData[1024];
-
-	fprintf(stderr, "rdp_udp_process_data\n");
 
 	/* If the connection is secured with TLS... */
 	if (udp->tls)
@@ -670,9 +633,7 @@ static void rdp_udp_process_data(rdpUdp* udp, RDPUDP_PDU* inputPdu)
 		IFCALL(udp->onDataReceived, udp, decryptedData, status);
 
 		/* Send an ACK. */
-		UINT16 flags = RDPUDP_FLAG_ACK;
-		BYTE ackVectorElement[1];
-		UINT16 ackVectorSize = 0;
+		flags = RDPUDP_FLAG_ACK;
 
 		/* Update the server sequence number. */
 		udp->serverSequenceNumber = inputPdu->sourcePayloadHeader.snSourceStart;
@@ -738,13 +699,11 @@ static void rdp_udp_secure_connection(rdpUdp* udp, RDPUDP_PDU* inputPdu)
 
 			/* Process handshake bytes sent by the peer. */
 			status = rdp_udp_tls_write(udp->tls, inputPdu->payloadData, inputPdu->payloadSize);
-			fprintf(stderr, "rdp_udp_tls_write: payload=%p, length=%d, status=%d\n", inputPdu->payloadData, inputPdu->payloadSize, status);
 		}
 
 		/* When connect returns TRUE, the connection is secured. */
 		if (rdp_udp_tls_connect(udp->tls))
 		{
-			fprintf(stderr, "SECURED!!!\n");
 			rdp_udp_change_state(udp, RDPUDP_STATE_SECURED);
 		}
 
@@ -755,8 +714,6 @@ static void rdp_udp_secure_connection(rdpUdp* udp, RDPUDP_PDU* inputPdu)
 			BYTE buffer[2048];
 
 			status = rdp_udp_tls_read(udp->tls, buffer, sizeof(buffer));
-
-			fprintf(stderr, "rdp_udp_tls_read: status=%d\n", status);
 
 			if (status >= 0)
 			{
@@ -780,8 +737,6 @@ static void rdp_udp_connecting_state(rdpUdp* udp, RDPUDP_PDU* inputPdu)
 	if ((inputPdu->fecHeader.uFlags & RDPUDP_FLAG_SYN) &&
 		(inputPdu->fecHeader.uFlags & RDPUDP_FLAG_ACK))
 	{
-		fprintf(stderr, "SYN + ACK received\n");
-
 		rdp_udp_change_state(udp, RDPUDP_STATE_CONNECTED);
 
 		/* Process ACKs. */
@@ -815,8 +770,6 @@ static void rdp_udp_securing_state(rdpUdp* udp, RDPUDP_PDU* inputPdu)
 
 static void rdp_udp_secured_state(rdpUdp* udp, RDPUDP_PDU* inputPdu)
 {
-	fprintf(stderr, "rdp_udp_secured_state\n");
-
 	/* If the ACK flag is set... */
 	if (inputPdu->fecHeader.uFlags & RDPUDP_FLAG_ACK)
 	{
@@ -1152,17 +1105,27 @@ void rdp_udp_free(rdpUdp* udp)
 	if (!udp)
 		return;
 
-	closesocket(udp->sockfd);
-	udp->sockfd = -1;
+	if (udp->sockfd && (udp->sockfd != -1))
+	{
+		closesocket(udp->sockfd);
+		udp->sockfd = -1;
+	}
 
-	WaitForSingleObject(udp->hThread, 250);
-	CloseHandle(udp->hThread);
+	if (udp->hThread)
+	{
+		WaitForSingleObject(udp->hThread, 250);
+		CloseHandle(udp->hThread);
+		udp->hThread = NULL;
+	}
 
 	rdp_udp_clear_recv_queue(udp);
 	rdp_udp_clear_send_queue(udp);
 
 	free(udp->recvQueue);
+	udp->recvQueue = NULL;
+
 	free(udp->sendQueue);
+	udp->sendQueue = NULL;
 
 	free(udp);
 }
