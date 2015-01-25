@@ -22,6 +22,7 @@
 
 #include "rdp.h"
 
+#include <freerdp/log.h>
 #include <freerdp/freerdp.h>
 
 #include <winpr/stream.h>
@@ -99,11 +100,5 @@ int rdpudp_write(rdpUdp* rdpudp, BYTE* data, int size);
 
 rdpUdp* rdpudp_new(rdpRdp* rdp);
 void rdpudp_free(rdpUdp* rdpUdp);
-
-#ifdef WITH_DEBUG_RDPUDP
-#define DEBUG_RDPUDP(fmt, ...) DEBUG_CLASS(RDPUDP, fmt, ## __VA_ARGS__)
-#else
-#define DEBUG_RDPUDP(fmt, ...) DEBUG_NULL(fmt, ## __VA_ARGS__)
-#endif
 
 #endif /* __RDPUDP_H */

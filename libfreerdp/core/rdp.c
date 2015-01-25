@@ -1360,7 +1360,7 @@ rdpRdp* rdp_new(rdpContext* context)
 	if (!rdp->heartbeat)
 		goto out_free_autodetect;
 
-	rdp->multitransport = multitransport_new();
+	rdp->multitransport = multitransport_new(rdp);
 	if (!rdp->multitransport)
 		goto out_free_heartbeat;
 

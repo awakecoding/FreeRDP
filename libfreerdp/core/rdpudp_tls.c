@@ -25,16 +25,15 @@
 
 #include <winpr/crt.h>
 #include <winpr/sspi.h>
-
 #include <winpr/stream.h>
-#include <freerdp/utils/tcp.h>
+#include <winpr/winsock.h>
 
 #include "rdpudp_tls.h"
 
-#define TLS_STATE_UNINITIALIZED	0
-#define TLS_STATE_INITIALIZED	1
+#define TLS_STATE_UNINITIALIZED		0
+#define TLS_STATE_INITIALIZED		1
 #define TLS_STATE_CONNECTED		2
-#define TLS_STATE_DISCONNECTED	3
+#define TLS_STATE_DISCONNECTED		3
 #define TLS_STATE_ERROR			4
 
 #define TLS_BUFFER_SIZE			1200

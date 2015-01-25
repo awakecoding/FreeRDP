@@ -25,9 +25,8 @@
 
 #include <winpr/crt.h>
 #include <winpr/sspi.h>
-
 #include <winpr/stream.h>
-#include <freerdp/utils/tcp.h>
+#include <winpr/winsock.h>
 
 #include "rdpudp_dtls.h"
 
