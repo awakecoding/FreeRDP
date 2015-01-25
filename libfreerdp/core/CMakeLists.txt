@@ -95,6 +95,12 @@ set(${MODULE_PREFIX}_SRCS
 	heartbeat.h
 	multitransport.c
 	multitransport.h
+	rdpudp.c
+	rdpudp.h
+	rdpudp_dtls.c
+	rdpudp_dtls.h
+	rdpudp_tls.c
+	rdpudp_tls.h
 	timezone.c
 	timezone.h
 	rdp.c
