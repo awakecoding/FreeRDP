@@ -29,9 +29,9 @@
 #include <winpr/stream.h>
 #include <winpr/winsock.h>
 
-#include "rdpudp_dtls.h"
+#include "udpl.h"
 
-#define TAG FREERDP_TAG("core.udp.tls")
+#define TAG FREERDP_TAG("core.udp")
 
 static CryptoCert rdp_udp_dtls_get_certificate(rdpUdpDtls* dtls, BOOL peer)
 {

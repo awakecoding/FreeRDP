@@ -23,7 +23,7 @@
 typedef struct rdp_multitransport rdpMultitransport;
 
 #include "rdp.h"
-#include "rdpudp.h"
+#include "udp.h"
 
 #include <freerdp/log.h>
 #include <freerdp/freerdp.h>

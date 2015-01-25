@@ -23,7 +23,7 @@
 
 #include <ctype.h>
 
-#include "multitransport.h"
+#include "tunnel.h"
 
 #define TAG FREERDP_TAG("core.udp")
 

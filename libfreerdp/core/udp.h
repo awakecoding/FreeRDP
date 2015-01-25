@@ -30,8 +30,8 @@ typedef struct rdp_udp rdpUdp;
 #include <winpr/stream.h>
 #include <winpr/winsock.h>
 
-#include "rdpudp_dtls.h"
-#include "rdpudp_tls.h"
+#include "udpl.h"
+#include "udpr.h"
 
 #define RDPUDP_PROTOCOL_UDPFECR			0x01
 #define RDPUDP_PROTOCOL_UDPFECL			0x02

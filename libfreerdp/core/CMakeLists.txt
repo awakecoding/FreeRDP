@@ -93,14 +93,14 @@ set(${MODULE_PREFIX}_SRCS
 	autodetect.h
 	heartbeat.c
 	heartbeat.h
-	multitransport.c
-	multitransport.h
-	rdpudp.c
-	rdpudp.h
-	rdpudp_dtls.c
-	rdpudp_dtls.h
-	rdpudp_tls.c
-	rdpudp_tls.h
+	tunnel.c
+	tunnel.h
+	udp.c
+	udp.h
+	udpl.c
+	udpl.h
+	udpr.c
+	udpr.h
 	timezone.c
 	timezone.h
 	rdp.c

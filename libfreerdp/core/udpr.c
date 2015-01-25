@@ -29,9 +29,9 @@
 #include <winpr/stream.h>
 #include <winpr/winsock.h>
 
-#include "rdpudp_tls.h"
+#include "udpr.h"
 
-#define TAG FREERDP_TAG("core.udp.tls")
+#define TAG FREERDP_TAG("core.udp")
 
 #define TLS_STATE_UNINITIALIZED		0
 #define TLS_STATE_INITIALIZED		1
