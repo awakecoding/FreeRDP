@@ -78,12 +78,10 @@ SecPkgContext_Bindings* rdpudp_dtls_get_channel_bindings(X509* cert)
 	PrefixLength = strlen(DTLS_SERVER_END_POINT);
 	ChannelBindingTokenLength = PrefixLength + CertificateHashLength;
 
-	ContextBindings = (SecPkgContext_Bindings*) malloc(sizeof(SecPkgContext_Bindings));
-	ZeroMemory(ContextBindings, sizeof(SecPkgContext_Bindings));
+	ContextBindings = (SecPkgContext_Bindings*) calloc(1, sizeof(SecPkgContext_Bindings));
 
 	ContextBindings->BindingsLength = sizeof(SEC_CHANNEL_BINDINGS) + ChannelBindingTokenLength;
-	ChannelBindings = (SEC_CHANNEL_BINDINGS*) malloc(ContextBindings->BindingsLength);
-	ZeroMemory(ChannelBindings, ContextBindings->BindingsLength);
+	ChannelBindings = (SEC_CHANNEL_BINDINGS*) calloc(1, ContextBindings->BindingsLength);
 	ContextBindings->Bindings = ChannelBindings;
 
 	ChannelBindings->cbApplicationDataLength = ChannelBindingTokenLength;
@@ -551,11 +549,12 @@ void rdpudp_dtls_print_certificate_name_mismatch_error(char* hostname, char* com
 
 rdpUdpDtls* rdpudp_dtls_new(rdpSettings* settings)
 {
-	rdpUdpDtls* dtls = (rdpUdpDtls*)malloc(sizeof(rdpUdpDtls));
+	rdpUdpDtls* dtls;
+
+	dtls = (rdpUdpDtls*) calloc(1, sizeof(rdpUdpDtls));
+
 	if (dtls)
 	{
-		ZeroMemory(dtls, sizeof(rdpUdpDtls));
-
 		SSL_load_error_strings();
 		SSL_library_init();
 

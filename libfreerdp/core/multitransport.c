@@ -28,65 +28,13 @@
 #define TAG FREERDP_TAG("core.multitransport")
 
 /**
- * RDP multitransport definitions from MS-RDPEMT
- *
- * RDP_TUNNEL_HEADER (2.2.1.1)
- * RDP_TUNNEL_CREATEREQUEST (2.2.2.1)
- * RDP_TUNNEL_CREATERESPONSE (2.2.2.2)
- * RDP_TUNNEL_DATA (2.2.2.3)
- */
-
-#define RDPTUNNEL_ACTION_CREATEREQUEST	0x0
-#define RDPTUNNEL_ACTION_CREATERESPONSE	0x1
-#define RDPTUNNEL_ACTION_DATA			0x2
-
-typedef struct {
-	BYTE action;
-	BYTE flags;
-	UINT16 payloadLength;
-	BYTE headerLength;
-	BYTE subHeaderLength;
-	BYTE subHeaderType;
-	BYTE* subHeaderData;
-} RDP_TUNNEL_HEADER;
-
-typedef struct {
-	UINT32 requestID;
-	UINT32 reserved;
-	BYTE securityCookie[16];
-} RDP_TUNNEL_CREATEREQUEST;
-
-typedef struct {
-	UINT32 hrResponse;
-} RDP_TUNNEL_CREATERESPONSE;
-
-typedef struct {
-	BYTE* higherLayerDataPointer;
-	UINT16 higherLayerDataLength;
-} RDP_TUNNEL_DATA;
-
-typedef struct {
-	BYTE action;
-	BYTE flags;
-	BYTE subHeaderLength;
-	BYTE subHeaderType;
-	BYTE* subHeaderData;
-	union {
-		RDP_TUNNEL_CREATEREQUEST tunnelCreateRequest;
-		RDP_TUNNEL_CREATERESPONSE tunnelCreateResponse;
-		RDP_TUNNEL_DATA tunnelData;
-	} u;
-} MULTITRANSPORT_PDU;
-
-
-/**
  * Utility Functions
  */
 static wStream* multitransport_packet_init()
 {
 	BYTE* buffer;
 
-	buffer = (BYTE*)malloc(1024);
+	buffer = (BYTE*) malloc(1024);
 
 	return buffer ? Stream_New(buffer, 1024) : NULL;
 }
@@ -116,7 +64,6 @@ static void multitransport_dump_packet(wStream* s)
 		pdulen -= size;
 	}
 }
-
 
 /**
  * Protocol encoders/decoders
@@ -292,7 +239,7 @@ static BOOL multitransport_decode_pdu(wStream *s, MULTITRANSPORT_PDU* pdu)
 	/* Parse the RDP_TUNNEL_HEADER. */
 	if (!multitransport_read_tunnel_header(s, &tunnelHeader))
 	{
-		WLog_DBG(TAG, "error parsing RDP_TUNNEL_HEADER");
+		WLog_ERR(TAG, "error parsing RDP_TUNNEL_HEADER");
 		return FALSE;
 	}
 
@@ -307,7 +254,7 @@ static BOOL multitransport_decode_pdu(wStream *s, MULTITRANSPORT_PDU* pdu)
 		case RDPTUNNEL_ACTION_CREATEREQUEST:
 			if (!multitransport_read_tunnel_create_request(s, &pdu->u.tunnelCreateRequest))
 			{
-				WLog_DBG(TAG, "error parsing RDP_TUNNEL_CREATEREQUEST");
+				WLog_ERR(TAG, "error parsing RDP_TUNNEL_CREATEREQUEST");
 				return FALSE;
 			}
 			break;
@@ -315,7 +262,7 @@ static BOOL multitransport_decode_pdu(wStream *s, MULTITRANSPORT_PDU* pdu)
 		case RDPTUNNEL_ACTION_CREATERESPONSE:
 			if (!multitransport_read_tunnel_create_response(s, &pdu->u.tunnelCreateResponse))
 			{
-				WLog_DBG(TAG, "error parsing RDP_TUNNEL_CREATERESPONSE");
+				WLog_ERR(TAG, "error parsing RDP_TUNNEL_CREATERESPONSE");
 				return FALSE;
 			}
 			break;
@@ -323,13 +270,13 @@ static BOOL multitransport_decode_pdu(wStream *s, MULTITRANSPORT_PDU* pdu)
 		case RDPTUNNEL_ACTION_DATA:
 			if (!multitransport_read_tunnel_data(s, &pdu->u.tunnelData));
 			{
-				WLog_DBG(TAG, "error parsing RDP_TUNNEL_DATA");
+				WLog_ERR(TAG, "error parsing RDP_TUNNEL_DATA");
 				return FALSE;
 			}
 			break;
 
 		default:
-			WLog_DBG(TAG, "unrecognized action 0x%x in RDP_TUNNEL_HEADER", pdu->action);
+			WLog_ERR(TAG, "unrecognized action 0x%x in RDP_TUNNEL_HEADER", pdu->action);
 			return FALSE;
 	}
 
@@ -338,15 +285,18 @@ static BOOL multitransport_decode_pdu(wStream *s, MULTITRANSPORT_PDU* pdu)
 
 wStream* multitransport_encode_pdu(MULTITRANSPORT_PDU* pdu)
 {
-	RDP_TUNNEL_HEADER tunnelHeader;
 	wStream* s;
+	RDP_TUNNEL_HEADER tunnelHeader;
 
 	s = multitransport_packet_init();
-	if (s == NULL) return NULL;
+
+	if (!s)
+		return NULL;
 
 	ZeroMemory(&tunnelHeader, sizeof(tunnelHeader));
 	tunnelHeader.action = pdu->action;
 	tunnelHeader.flags = pdu->flags;
+
 	switch (pdu->action)
 	{
 		case RDPTUNNEL_ACTION_CREATEREQUEST:
@@ -391,7 +341,6 @@ wStream* multitransport_encode_pdu(MULTITRANSPORT_PDU* pdu)
 	return s;
 }
 
-
 /**
  * PDUs sent/received over RDP-UDP
  */
@@ -403,7 +352,9 @@ static BOOL multitransport_send_pdu(rdpUdp* rdpudp, MULTITRANSPORT_PDU* pdu)
 	int status;
 
 	s = multitransport_encode_pdu(pdu);
-	if (s == NULL) return FALSE;
+
+	if (!s)
+		return FALSE;
 
 	Stream_SealLength(s);
 
@@ -411,11 +362,12 @@ static BOOL multitransport_send_pdu(rdpUdp* rdpudp, MULTITRANSPORT_PDU* pdu)
 	pdulen = Stream_Length(s);
 
 	status = rdpudp_write(rdpudp, pduptr, pdulen);
-	if (status != pdulen) return FALSE;
+
+	if (status != pdulen)
+		return FALSE;
 
 	return TRUE;
 }
-
 
 /*
  * RDP-UDP callbacks
@@ -424,7 +376,7 @@ static void multitransport_on_disconnected(rdpUdp* rdpudp)
 {
 	multitransportTunnel* tunnel;
 
-	tunnel = (multitransportTunnel*)rdpudp->callbackData;
+	tunnel = (multitransportTunnel*) rdpudp->callbackData;
 
 	fprintf(stderr, "multitransport_on_disconnected\n");
 }
@@ -433,16 +385,16 @@ static void multitransport_on_connecting(rdpUdp* rdpudp)
 {
 	multitransportTunnel* tunnel;
 
-	tunnel = (multitransportTunnel*)rdpudp->callbackData;
+	tunnel = (multitransportTunnel*) rdpudp->callbackData;
 
-	fprintf(stderr, "multitransport_on_connectings\n");
+	fprintf(stderr, "multitransport_on_connecting\n");
 }
 
 static void multitransport_on_connected(rdpUdp* rdpudp)
 {
 	multitransportTunnel* tunnel;
 
-	tunnel = (multitransportTunnel*)rdpudp->callbackData;
+	tunnel = (multitransportTunnel*) rdpudp->callbackData;
 
 	fprintf(stderr, "multitransport_on_connected\n");
 }
@@ -451,7 +403,7 @@ static void multitransport_on_securing(rdpUdp* rdpudp)
 {
 	multitransportTunnel* tunnel;
 
-	tunnel = (multitransportTunnel*)rdpudp->callbackData;
+	tunnel = (multitransportTunnel*) rdpudp->callbackData;
 
 	fprintf(stderr, "multitransport_on_securing\n");
 }
@@ -461,7 +413,7 @@ static void multitransport_on_secured(rdpUdp* rdpudp)
 	multitransportTunnel* tunnel;
 	MULTITRANSPORT_PDU pdu;
 
-	tunnel = (multitransportTunnel*)rdpudp->callbackData;
+	tunnel = (multitransportTunnel*) rdpudp->callbackData;
 
 	fprintf(stderr, "multitransport_on_secured\n");
 
@@ -473,21 +425,22 @@ static void multitransport_on_secured(rdpUdp* rdpudp)
 	multitransport_send_pdu(rdpudp, &pdu);
 }
 
-static void multitransport_on_data_received(rdpUdp* rdpudp,	BYTE* data,	int size)
+static void multitransport_on_data_received(rdpUdp* rdpudp, BYTE* data, int size)
 {
-	multitransportTunnel* tunnel;
-	MULTITRANSPORT_PDU pdu;
 	wStream* s;
+	MULTITRANSPORT_PDU pdu;
+	multitransportTunnel* tunnel;
 
-	tunnel = (multitransportTunnel*)rdpudp->callbackData;
+	tunnel = (multitransportTunnel*) rdpudp->callbackData;
 
 	fprintf(stderr, "multitransport_on_data_received\n");
 	fprintf(stderr, "data=%p, size=%d\n", data, size);
 
 	s = Stream_New(data, size);
-	if (s == NULL)
+
+	if (!s)
 	{
-		WLog_DBG(TAG, "could not create stream");
+		WLog_ERR(TAG, "could not create stream");
 		return;
 	}
 
@@ -496,19 +449,16 @@ static void multitransport_on_data_received(rdpUdp* rdpudp,	BYTE* data,	int size
 	/* Decode the multitransport PDU. */
 	if (!multitransport_decode_pdu(s, &pdu))
 	{
-		WLog_DBG(TAG, "could not decode PDU");
+		WLog_ERR(TAG, "could not decode PDU");
 		return;
 	}
 }
-
 
 /**
  * PDUs sent/received over main RDP channel
  */
 BOOL multitransport_send_initiate_error(
-	rdpMultitransport* multitransport,
-	UINT32 requestId,
-	UINT32 hrResponse)
+	rdpMultitransport* multitransport, UINT32 requestId, UINT32 hrResponse)
 {
 	rdpRdp* rdp;
 	wStream* s;
@@ -517,7 +467,9 @@ BOOL multitransport_send_initiate_error(
 
 	/* Send the response PDU to the server */
 	s = rdp_message_channel_pdu_init(rdp);
-	if (s == NULL) return FALSE;
+
+	if (!s)
+		return FALSE;
 
 	WLog_DBG(TAG, "sending initiate error PDU");
 
@@ -528,21 +480,23 @@ BOOL multitransport_send_initiate_error(
 }
 
 static BOOL multitransport_recv_initiate_request(
-	rdpMultitransport* multitransport,
-	UINT32 requestId,
-	UINT16 requestedProtocol,
-	BYTE* securityCookie)
+	rdpMultitransport* multitransport, UINT32 requestId,
+	UINT16 requestedProtocol, BYTE* securityCookie)
 {
 	multitransportTunnel* tunnel = NULL;
 	rdpUdp* rdpudp = NULL;
 
 	WLog_DBG(TAG, "requestId=%x, requestedProtocol=%x", requestId, requestedProtocol);
 
-	tunnel = (multitransportTunnel*)malloc(sizeof(multitransportTunnel));
-	if (tunnel == NULL) goto EXCEPTION;
+	tunnel = (multitransportTunnel*) calloc(1, sizeof(multitransportTunnel));
+
+	if (!tunnel)
+		goto EXCEPTION;
 
 	rdpudp = rdpudp_new(multitransport->rdp);
-	if (rdpudp == NULL) goto EXCEPTION;
+
+	if (!rdpudp)
+		goto EXCEPTION;
 
 	rdpudp->onDisconnected = multitransport_on_disconnected;
 	rdpudp->onConnecting = multitransport_on_connecting;
@@ -551,9 +505,10 @@ static BOOL multitransport_recv_initiate_request(
 	rdpudp->onSecured = multitransport_on_secured;
 	rdpudp->onDataReceived = multitransport_on_data_received;
 
-	rdpudp->callbackData = (void*)tunnel;
+	rdpudp->callbackData = (void*) tunnel;
 
-	if (!rdpudp_init(rdpudp, requestedProtocol)) goto EXCEPTION;
+	if (!rdpudp_init(rdpudp, requestedProtocol))
+		goto EXCEPTION;
 
 	tunnel->rdpudp = rdpudp;
 	tunnel->requestId = requestId;
@@ -629,14 +584,14 @@ void multitransport_free(rdpMultitransport* multitransport)
 
 	if (multitransport->udpLTunnel)
 	{
-		tunnel = (multitransportTunnel*)multitransport->udpLTunnel;
+		tunnel = (multitransportTunnel*) multitransport->udpLTunnel;
 		rdpudp_free(tunnel->rdpudp);
 		free(tunnel);
 	}
 
 	if (multitransport->udpRTunnel)
 	{
-		tunnel = (multitransportTunnel*)multitransport->udpRTunnel;
+		tunnel = (multitransportTunnel*) multitransport->udpRTunnel;
 		rdpudp_free(tunnel->rdpudp);
 		free(tunnel);
 	}

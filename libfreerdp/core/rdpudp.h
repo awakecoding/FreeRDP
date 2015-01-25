@@ -20,35 +20,110 @@
 #ifndef __RDPUDP_H
 #define __RDPUDP_H
 
+typedef struct rdpudp rdpUdp;
+
 #include "rdp.h"
 
 #include <freerdp/log.h>
 #include <freerdp/freerdp.h>
 
 #include <winpr/stream.h>
-
-#ifndef _WIN32
-#include <netdb.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-
-#define closesocket(_fd)	close(_fd)
-#else
-#define SHUT_RDWR SD_BOTH
-#endif
+#include <winpr/winsock.h>
 
 #include "rdpudp_dtls.h"
 #include "rdpudp_tls.h"
 
-#define RDPUDP_PROTOCOL_UDPFECR		0x01
-#define RDPUDP_PROTOCOL_UDPFECL		0x02
+#define RDPUDP_PROTOCOL_UDPFECR			0x01
+#define RDPUDP_PROTOCOL_UDPFECL			0x02
 
-typedef struct rdpudp rdpUdp;
+#define RDPUDP_MTU_SIZE				1232
+#define RDPUDP_QUEUE_SIZE			1024
+#define RDPUDP_ACKVECTOR_SIZE			1024
+#define RDPUDP_RETRANSMIT_COUNT			3
+#define RDPUDP_RETRANSMIT_INTERVAL		1000
+
+#define RDPUDP_STATE_DISCONNECTED		0
+#define RDPUDP_STATE_CONNECTING			1
+#define RDPUDP_STATE_CONNECTED			2
+#define RDPUDP_STATE_SECURING			3
+#define RDPUDP_STATE_SECURED			4
+
+#define DATAGRAM_RECEIVED			0
+#define DATAGRAM_RESERVED_1			1
+#define DATAGRAM_RESERVED_2			2
+#define DATAGRAM_NOT_YET_RECEIVED		3
+
+#define RDPUDP_FLAG_SYN				0x0001
+#define RDPUDP_FLAG_FIN				0x0002
+#define RDPUDP_FLAG_ACK				0x0004
+#define RDPUDP_FLAG_DATA			0x0008
+#define RDPUDP_FLAG_FEC				0x0010
+#define RDPUDP_FLAG_CN				0x0020
+#define RDPUDP_FLAG_CWR				0x0040
+#define RDPUDP_FLAG_SACK_OPTION			0x0080
+#define RDPUDP_FLAG_ACK_OF_ACKS			0x0100
+#define RDPUDP_FLAG_SYNLOSSY			0x0200
+#define RDPUDP_FLAG_ACKDELAYED			0x0400
+#define RDPUDP_FLAG_CORRELATION_ID		0x0800
+
+#define E_ABORT					0x80004004
+
+typedef struct {
+	UINT32 snSourceAck;
+	UINT16 uReceiveWindowSize;
+	UINT16 uFlags;
+} RDPUDP_FEC_HEADER;
+
+typedef struct {
+	UINT32 snCoded;
+	UINT32 snSourceStart;
+	UINT16 uSourceRange;
+	UINT16 uFecIndex;
+	UINT16 uPadding;
+} RDPUDP_FEC_PAYLOAD_HEADER;
+
+typedef struct {
+	UINT16 cbPayloadSize;
+} RDPUDP_PAYLOAD_PREFIX;
+
+typedef struct {
+	UINT32 snCoded;
+	UINT32 snSourceStart;
+} RDPUDP_SOURCE_PAYLOAD_HEADER;
+
+typedef struct {
+	UINT32 snInitialSequenceNumber;
+	UINT16 uUpStreamMtu;
+	UINT16 uDownStreamMtu;
+} RDPUDP_SYNDATA_PAYLOAD;
+
+typedef struct {
+	UINT32 snAckOfAcksSeqNum;
+} RDPUDP_ACK_OF_ACKVECTOR_HEADER;
+
+typedef struct {
+	UINT16 uAckVectorSize;
+	UINT8 AckVectorElement[RDPUDP_ACKVECTOR_SIZE];
+} RDPUDP_ACK_VECTOR_HEADER;
+
+typedef struct {
+	BYTE uCorrelationId[16];
+} RDPUDP_CORRELATION_ID_PAYLOAD;
+
+typedef struct {
+	wStream* s;
+
+	RDPUDP_FEC_HEADER fecHeader;
+	RDPUDP_SYNDATA_PAYLOAD syndataPayload;
+	RDPUDP_ACK_VECTOR_HEADER ackVectorHeader;
+	RDPUDP_FEC_PAYLOAD_HEADER fecPayloadHeader;
+	RDPUDP_SOURCE_PAYLOAD_HEADER sourcePayloadHeader;
+	RDPUDP_CORRELATION_ID_PAYLOAD correlationIdPayload;
+	RDPUDP_ACK_OF_ACKVECTOR_HEADER ackOfAckVectorHeader;
+
+	BYTE* payloadData;
+	int payloadSize;
+} RDPUDP_PDU;
 
 struct rdpudp
 {

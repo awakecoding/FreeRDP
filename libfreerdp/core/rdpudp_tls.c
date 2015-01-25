@@ -86,12 +86,10 @@ SecPkgContext_Bindings* rdpudp_tls_get_channel_bindings(X509* cert)
 	PrefixLength = strlen(TLS_SERVER_END_POINT);
 	ChannelBindingTokenLength = PrefixLength + CertificateHashLength;
 
-	ContextBindings = (SecPkgContext_Bindings*) malloc(sizeof(SecPkgContext_Bindings));
-	ZeroMemory(ContextBindings, sizeof(SecPkgContext_Bindings));
+	ContextBindings = (SecPkgContext_Bindings*) calloc(1, sizeof(SecPkgContext_Bindings));
 
 	ContextBindings->BindingsLength = sizeof(SEC_CHANNEL_BINDINGS) + ChannelBindingTokenLength;
-	ChannelBindings = (SEC_CHANNEL_BINDINGS*) malloc(ContextBindings->BindingsLength);
-	ZeroMemory(ChannelBindings, ContextBindings->BindingsLength);
+	ChannelBindings = (SEC_CHANNEL_BINDINGS*) calloc(1, ContextBindings->BindingsLength);
 	ContextBindings->Bindings = ChannelBindings;
 
 	ChannelBindings->cbApplicationDataLength = ChannelBindingTokenLength;
@@ -104,7 +102,7 @@ SecPkgContext_Bindings* rdpudp_tls_get_channel_bindings(X509* cert)
 	return ContextBindings;
 }
 
-static void rdpudp_tls_ssl_info_callback(const SSL* ssl, int type, int val)
+void rdpudp_tls_ssl_info_callback(const SSL* ssl, int type, int val)
 {
 	if (type & SSL_CB_HANDSHAKE_START)
 	{
@@ -275,7 +273,7 @@ BOOL rdpudp_tls_accept(rdpUdpTls* tls, const char* cert_file, const char* privat
 
 	tls->ctx = SSL_CTX_new(SSLv23_server_method());
 
-	if (tls->ctx == NULL)
+	if (!tls->ctx)
 	{
 		fprintf(stderr, "SSL_CTX_new failed\n");
 		return FALSE;
@@ -445,6 +443,7 @@ int rdpudp_tls_decrypt(rdpUdpTls* tls, BYTE* data, int length)
 		return -1;
 
 	status = SSL_read(tls->ssl, data, length);
+
 	if (status < 0)
 	{
 		error = SSL_get_error(tls->ssl, status);
@@ -473,6 +472,7 @@ int rdpudp_tls_encrypt(rdpUdpTls* tls, BYTE* data, int length)
 		return -1;
 
 	status = SSL_write(tls->ssl, data, length);
+
 	if (status < 0)
 	{
 		error = SSL_get_error(tls->ssl, status);
@@ -942,6 +942,7 @@ void rdpudp_tls_print_certificate_name_mismatch_error(char* hostname, char* comm
 	fprintf(stderr, "does not match %s given in the certificate:\n", alt_names_count < 1 ? "the name" : "any of the names");
 	fprintf(stderr, "Common Name (CN):\n");
 	fprintf(stderr, "\t%s\n", common_name ? common_name : "no CN found in certificate");
+
 	if (alt_names_count > 1)
 	{
 		assert(NULL != alt_names);
@@ -962,12 +963,10 @@ rdpUdpTls* rdpudp_tls_new(rdpSettings* settings)
 {
 	rdpUdpTls* tls;
 
-	tls = (rdpUdpTls*) malloc(sizeof(rdpUdpTls));
+	tls = (rdpUdpTls*) calloc(1, sizeof(rdpUdpTls));
 
 	if (tls)
 	{
-		ZeroMemory(tls, sizeof(rdpUdpTls));
-
 		SSL_load_error_strings();
 		SSL_library_init();
 

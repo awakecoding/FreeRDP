@@ -22,6 +22,7 @@
 
 #include <winpr/crt.h>
 #include <winpr/sspi.h>
+#include <winpr/stream.h>
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -31,8 +32,6 @@
 
 #include <freerdp/crypto/crypto.h>
 #include <freerdp/crypto/certificate.h>
-
-#include <winpr/stream.h>
 
 typedef struct rdpudp_dtls rdpUdpDtls;
 

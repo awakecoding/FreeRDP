@@ -27,108 +27,6 @@
 
 #define TAG FREERDP_TAG("core.rdpudp")
 
-#define RDPUDP_MTU_SIZE				1232
-#define RDPUDP_QUEUE_SIZE			1024
-#define RDPUDP_ACKVECTOR_SIZE			1024
-#define RDPUDP_RETRANSMIT_COUNT			3
-#define RDPUDP_RETRANSMIT_INTERVAL		1000
-
-#define RDPUDP_STATE_DISCONNECTED		0
-#define RDPUDP_STATE_CONNECTING			1
-#define RDPUDP_STATE_CONNECTED			2
-#define RDPUDP_STATE_SECURING			3
-#define RDPUDP_STATE_SECURED			4
-
-#define DATAGRAM_RECEIVED			0
-#define DATAGRAM_RESERVED_1			1
-#define DATAGRAM_RESERVED_2			2
-#define DATAGRAM_NOT_YET_RECEIVED		3
-
-#define RDPUDP_FLAG_SYN				0x0001
-#define RDPUDP_FLAG_FIN				0x0002
-#define RDPUDP_FLAG_ACK				0x0004
-#define RDPUDP_FLAG_DATA			0x0008
-#define RDPUDP_FLAG_FEC				0x0010
-#define RDPUDP_FLAG_CN				0x0020
-#define RDPUDP_FLAG_CWR				0x0040
-#define RDPUDP_FLAG_SACK_OPTION			0x0080
-#define RDPUDP_FLAG_ACK_OF_ACKS			0x0100
-#define RDPUDP_FLAG_SYNLOSSY			0x0200
-#define RDPUDP_FLAG_ACKDELAYED			0x0400
-#define RDPUDP_FLAG_CORRELATION_ID		0x0800
-
-#define E_ABORT					0x80004004
-
-/**
- * RDP-UDP structures defined in MS-RDPEUDP
- *
- * RDPUDP_FEC_HEADER (2.2.2.1)
- * RDPUDP_FEC_PAYLOAD_HEADER (2.2.2.2)
- * RDPUDP_PAYLOAD_PREFIX (2.2.2.3)
- * RDPUDP_SOURCE_PAYLOAD_HEADER (2.2.2.4)
- * RDPUDP_SYNDATA_PAYLOAD (2.2.2.5)
- * RDPUDP_ACK_OF_ACKVECTOR_HEADER (2.2.2.6)
- * RDPUDP_ACK_VECTOR_HEADER (2.2.2.7)
- * RDPUDP_CORRELATION_ID_PAYLOAD (2.2.2.8)
- */
-typedef struct {
-	UINT32 snSourceAck;
-	UINT16 uReceiveWindowSize;
-	UINT16 uFlags;
-} RDPUDP_FEC_HEADER;
-
-typedef struct {
-	UINT32 snCoded;
-	UINT32 snSourceStart;
-	UINT16 uSourceRange;
-	UINT16 uFecIndex;
-	UINT16 uPadding;
-} RDPUDP_FEC_PAYLOAD_HEADER;
-
-typedef struct {
-	UINT16 cbPayloadSize;
-} RDPUDP_PAYLOAD_PREFIX;
-
-typedef struct {
-	UINT32 snCoded;
-	UINT32 snSourceStart;
-} RDPUDP_SOURCE_PAYLOAD_HEADER;
-
-typedef struct {
-	UINT32 snInitialSequenceNumber;
-	UINT16 uUpStreamMtu;
-	UINT16 uDownStreamMtu;
-} RDPUDP_SYNDATA_PAYLOAD;
-
-typedef struct {
-	UINT32 snAckOfAcksSeqNum;
-} RDPUDP_ACK_OF_ACKVECTOR_HEADER;
-
-typedef struct {
-	UINT16 uAckVectorSize;
-	UINT8 AckVectorElement[RDPUDP_ACKVECTOR_SIZE];
-} RDPUDP_ACK_VECTOR_HEADER;
-
-typedef struct {
-	BYTE uCorrelationId[16];
-} RDPUDP_CORRELATION_ID_PAYLOAD;
-
-typedef struct {
-	wStream* s;
-
-	RDPUDP_FEC_HEADER fecHeader;
-	RDPUDP_SYNDATA_PAYLOAD syndataPayload;
-	RDPUDP_ACK_VECTOR_HEADER ackVectorHeader;
-	RDPUDP_FEC_PAYLOAD_HEADER fecPayloadHeader;
-	RDPUDP_SOURCE_PAYLOAD_HEADER sourcePayloadHeader;
-	RDPUDP_CORRELATION_ID_PAYLOAD correlationIdPayload;
-	RDPUDP_ACK_OF_ACKVECTOR_HEADER ackOfAckVectorHeader;
-
-	BYTE* payloadData;
-	int payloadSize;
-} RDPUDP_PDU;
-	
-
 /**
  * Utility Functions
  */
@@ -136,7 +34,7 @@ static wStream* rdpudp_packet_init()
 {
 	BYTE* buffer;
 
-	buffer = (BYTE*)malloc(RDPUDP_MTU_SIZE);
+	buffer = (BYTE*) malloc(RDPUDP_MTU_SIZE);
 
 	return buffer ? Stream_New(buffer, RDPUDP_MTU_SIZE) : NULL;
 }
@@ -173,7 +71,8 @@ static BOOL rdpudp_send_packet(rdpUdp* rdpudp, wStream* s)
 	int pdulen;
 	int status;
 
-	if (s == NULL) return FALSE;
+	if (!s)
+		return FALSE;
 
 	Stream_SealLength(s);
 
@@ -372,6 +271,7 @@ static BOOL rdpudp_read_ack_vector_header(wStream* s, RDPUDP_ACK_VECTOR_HEADER* 
 
 	/* Skip over padding to make the structure fall on a DWORD boundary. */
 	padding = rdpudp_ack_vector_header_padding(ackVectorHeader->uAckVectorSize);
+
 	if (padding > 0)
 	{
 		if (Stream_GetRemainingLength(s) < padding)
@@ -394,10 +294,9 @@ static void rdpudp_write_ack_vector_header(wStream* s, RDPUDP_ACK_VECTOR_HEADER*
 
 	/* Pad the structure on a DWORD boundary. */
 	padding = rdpudp_ack_vector_header_padding(ackVectorHeader->uAckVectorSize);
+
 	if (padding > 0)
-	{
 		Stream_Zero(s, padding);
-	}
 
 	rdpudp_dump_ack_vector_header(ackVectorHeader);
 }
@@ -436,7 +335,7 @@ static BOOL rdpudp_decode_pdu(wStream *s, RDPUDP_PDU* pdu)
 	/* Parse the RDPUDP_FEC_HEADER. */
 	if (!rdpudp_read_fec_header(s, &pdu->fecHeader))
 	{
-		WLog_DBG(TAG, "error parsing RDPUDP_FEC_HEADER");
+		WLog_ERR(TAG, "error parsing RDPUDP_FEC_HEADER");
 		return FALSE;
 	}
 
@@ -446,7 +345,7 @@ static BOOL rdpudp_decode_pdu(wStream *s, RDPUDP_PDU* pdu)
 		/* Parse the RDPUDP_SYNDATA_PAYLOAD. */
 		if (!rdpudp_read_syndata_payload(s, &pdu->syndataPayload))
 		{
-			WLog_DBG(TAG, "error parsing RDPUDP_SYNDATA_PAYLOAD");
+			WLog_ERR(TAG, "error parsing RDPUDP_SYNDATA_PAYLOAD");
 			return FALSE;
 		}
 	}
@@ -457,7 +356,7 @@ static BOOL rdpudp_decode_pdu(wStream *s, RDPUDP_PDU* pdu)
 		/* Parse the RDPUDP_ACK_VECTOR_HEADER. */
 		if (!rdpudp_read_ack_vector_header(s, &pdu->ackVectorHeader))
 		{
-			WLog_DBG(TAG, "error parsing RDPUDP_ACK_VECTOR_HEADER");
+			WLog_ERR(TAG, "error parsing RDPUDP_ACK_VECTOR_HEADER");
 			return FALSE;
 		}
 	}
@@ -468,7 +367,7 @@ static BOOL rdpudp_decode_pdu(wStream *s, RDPUDP_PDU* pdu)
 		/* Parse the RDPUDP_ACK_OF_ACKVECTOR_HEADER. */
 		if (!rdpudp_read_ack_of_ackvector_header(s, &pdu->ackOfAckVectorHeader))
 		{
-			WLog_DBG(TAG, "error parsing RDPUDP_ACK_OF_ACKVECTOR_HEADER");
+			WLog_ERR(TAG, "error parsing RDPUDP_ACK_OF_ACKVECTOR_HEADER");
 			return FALSE;
 		}
 	}
@@ -482,7 +381,7 @@ static BOOL rdpudp_decode_pdu(wStream *s, RDPUDP_PDU* pdu)
 			/* Parse the RDPUDP_FEC_PAYLOAD_HEADER. */
 			if (!rdpudp_read_fec_payload_header(s, &pdu->fecPayloadHeader))
 			{
-				WLog_DBG(TAG, "error parsing RDPUDP_FEC_PAYLOAD_HEADER");
+				WLog_ERR(TAG, "error parsing RDPUDP_FEC_PAYLOAD_HEADER");
 				return FALSE;
 			}
 		}
@@ -491,7 +390,7 @@ static BOOL rdpudp_decode_pdu(wStream *s, RDPUDP_PDU* pdu)
 			/* Parse the RDPUDP_SOURCE_PAYLOAD_HEADER. */
 			if (!rdpudp_read_source_payload_header(s, &pdu->sourcePayloadHeader))
 			{
-				WLog_DBG(TAG, "error parsing RDPUDP_SOURCE_PAYLOAD_HEADER");
+				WLog_ERR(TAG, "error parsing RDPUDP_SOURCE_PAYLOAD_HEADER");
 				return FALSE;
 			}
 		}
@@ -512,7 +411,9 @@ wStream* rdpudp_encode_pdu(RDPUDP_PDU* pdu)
 	wStream* s;
 
 	s = rdpudp_packet_init();
-	if (s == NULL) return NULL;
+
+	if (!s)
+		return NULL;
 
 	rdpudp_write_fec_header(s, &pdu->fecHeader);
 
@@ -534,6 +435,7 @@ wStream* rdpudp_encode_pdu(RDPUDP_PDU* pdu)
 	if (pdu->fecHeader.uFlags & RDPUDP_FLAG_DATA)
 	{
 		rdpudp_write_source_payload_header(s, &pdu->sourcePayloadHeader);
+
 		if (pdu->payloadData)
 		{		
 			Stream_Write(s, pdu->payloadData, pdu->payloadSize);
@@ -548,7 +450,6 @@ wStream* rdpudp_encode_pdu(RDPUDP_PDU* pdu)
 
 	return s;
 }
-
 
 /*
  * Queue Functions
@@ -626,7 +527,6 @@ static void rdpudp_retransmit(rdpUdp* rdpudp)
 	}
 }
 
-
 /**
  * PDU Processing Functions
  */
@@ -635,11 +535,13 @@ static BOOL rdpudp_send_pdu(rdpUdp* rdpudp, RDPUDP_PDU* pdu)
 	wStream* s;
 
 	s = rdpudp_encode_pdu(pdu);
-	if (s == NULL) return FALSE;
+
+	if (!s)
+		return FALSE;
 
 	if (!rdpudp_send_packet(rdpudp, s))
 	{
-		fprintf(stderr, "error sending PDU\n");
+		WLog_ERR(TAG, "error sending PDU\n");
 		Stream_Free(s, TRUE);
 		return FALSE;
 	}
@@ -653,12 +555,12 @@ static BOOL rdpudp_send_pdu(rdpUdp* rdpudp, RDPUDP_PDU* pdu)
 static BOOL rdpudp_send_data(
 	rdpUdp* rdpudp, UINT16 flags,
 	BYTE* ackVectorElement, UINT16 ackVectorSize,
-	BYTE* payloadData, int payloadSize
-)
+	BYTE* payloadData, int payloadSize)
 {
 	RDPUDP_PDU pdu;
 
-	if (flags == 0) return FALSE;
+	if (flags == 0)
+		return FALSE;
 
 	ZeroMemory(&pdu, sizeof(pdu));
 
@@ -744,16 +646,18 @@ static void rdpudp_process_data(rdpUdp* rdpudp, RDPUDP_PDU* inputPdu)
 	{
 		/* Decrypt the payload. */
 		status = rdpudp_tls_write(rdpudp->tls, inputPdu->payloadData, inputPdu->payloadSize);
+
 		if (status < 0)
 		{
-			WLog_DBG(TAG, "error decrypting data");
+			WLog_ERR(TAG, "error decrypting data");
 			return;
 		}
 
 		status = rdpudp_tls_decrypt(rdpudp->tls, decryptedData, sizeof(decryptedData));
+
 		if (status < 0)
 		{
-			WLog_DBG(TAG, "error decrypting data");
+			WLog_ERR(TAG, "error decrypting data");
 			return;
 		}
 
@@ -785,18 +689,23 @@ static void rdpudp_change_state(rdpUdp* rdpudp, int state)
 		case RDPUDP_STATE_DISCONNECTED:
 			IFCALL(rdpudp->onDisconnected, rdpudp);
 			break;
+
 		case RDPUDP_STATE_CONNECTING:
 			IFCALL(rdpudp->onConnecting, rdpudp);
 			break;
+
 		case RDPUDP_STATE_CONNECTED:
 			IFCALL(rdpudp->onConnected, rdpudp);
 			break;
+
 		case RDPUDP_STATE_SECURING:
 			IFCALL(rdpudp->onSecuring, rdpudp);
 			break;
+
 		case RDPUDP_STATE_SECURED:
 			IFCALL(rdpudp->onSecured, rdpudp);
 			break;
+
 		default:
 			break;
 	}
@@ -840,7 +749,9 @@ static void rdpudp_secure_connection(rdpUdp* rdpudp, RDPUDP_PDU* inputPdu)
 			int status;
 
 			status = rdpudp_tls_read(rdpudp->tls, buffer, sizeof(buffer));
+
 			fprintf(stderr, "rdpudp_tls_read: status=%d\n", status);
+
 			if (status >= 0)
 			{
 				UINT16 flags = RDPUDP_FLAG_ACK;
@@ -983,17 +894,15 @@ static void rdpudp_timeout(rdpUdp* rdpudp)
 	fprintf(stderr, "\n");
 }
 
-
 /**
  * Main thread
  */
 static DWORD rdpudp_thread(LPVOID lpParameter)
 {
-	rdpUdp* rdpudp = (rdpUdp*)lpParameter;
-
+	rdpUdp* rdpudp = (rdpUdp*) lpParameter;
 	int sockfd = rdpudp->sockfd;
 
-	for (;;)
+	while (TRUE)
 	{
 		BYTE pdu[RDPUDP_MTU_SIZE];
 		struct timeval timeval;
@@ -1010,6 +919,7 @@ static DWORD rdpudp_thread(LPVOID lpParameter)
 		if (rdpudp->retransmitTimer)
 		{
 			DWORD tickCount = GetTickCount();
+
 			if (tickCount < rdpudp->retransmitTimer)
 			{
 				DWORD timeDiff = rdpudp->retransmitTimer - tickCount;
@@ -1030,6 +940,7 @@ static DWORD rdpudp_thread(LPVOID lpParameter)
 		if (status > 0)
 		{
 			status = recv(sockfd, pdu, sizeof(pdu), 0);
+
 			if (status <= 0)
 			{
 				WLog_DBG(TAG, "recv error (errno=%d)", errno);
@@ -1067,7 +978,8 @@ BOOL rdpudp_init(rdpUdp* rdpudp, UINT16 protocol)
 	/*
 	 * Only focused right now on UDP-R.
 	 */
-	if (protocol == RDPUDP_PROTOCOL_UDPFECL) return FALSE;
+	if (protocol == RDPUDP_PROTOCOL_UDPFECL)
+		return FALSE;
 
 	/* Initialize state. */
 	rdpudp->protocol = protocol;
@@ -1078,13 +990,13 @@ BOOL rdpudp_init(rdpUdp* rdpudp, UINT16 protocol)
 	rdpudp->serverSequenceNumber = 0xFFFFFFFF;
 	rdpudp->serverReceiveWindowSize = 64;
 
-	rdpudp->recvQueue = (wStream**)malloc(RDPUDP_QUEUE_SIZE * sizeof(wStream*));
+	rdpudp->recvQueue = (wStream**) calloc(RDPUDP_QUEUE_SIZE, sizeof(wStream*));
 	if (rdpudp->recvQueue)
 	{
 		rdpudp->recvQueueCapacity = RDPUDP_QUEUE_SIZE;
 	}
 
-	rdpudp->sendQueue = (wStream**)malloc(RDPUDP_QUEUE_SIZE * sizeof(wStream**));
+	rdpudp->sendQueue = (wStream**) calloc(RDPUDP_QUEUE_SIZE, sizeof(wStream*));
 	if (rdpudp->sendQueue)
 	{
 		rdpudp->sendQueueCapacity = RDPUDP_QUEUE_SIZE;
@@ -1145,10 +1057,10 @@ BOOL rdpudp_init(rdpUdp* rdpudp, UINT16 protocol)
 
 	/* Send a SYN datagram to the server. */
 	flags = RDPUDP_FLAG_SYN;
+
 	if (protocol == RDPUDP_PROTOCOL_UDPFECL)
-	{
 		flags |= RDPUDP_FLAG_SYNLOSSY;
-	}
+
 	if (!rdpudp_send_data(rdpudp, flags, NULL, 0, NULL, 0))
 	{
 		WLog_DBG(TAG, "cannot send SYN");
@@ -1158,17 +1070,11 @@ BOOL rdpudp_init(rdpUdp* rdpudp, UINT16 protocol)
 	rdpudp->state = RDPUDP_STATE_CONNECTING;
 
 	/* Start the thread. */
-	rdpudp->hThread =
-		CreateThread(
-			NULL, 0,
-			rdpudp_thread,
-			(LPVOID)rdpudp,
-			0,
-			&rdpudp->dwThreadId);
+	rdpudp->hThread = CreateThread(NULL, 0, rdpudp_thread,
+			(LPVOID) rdpudp, 0, &rdpudp->dwThreadId);
 
 	return TRUE;
 }
-
 
 /**
  * Read/write functions
@@ -1180,8 +1086,8 @@ int rdpudp_read(rdpUdp* rdpudp, BYTE* data, int size)
 
 int rdpudp_write(rdpUdp* rdpudp, BYTE* data, int size)
 {
-	BYTE encryptedData[1024];
 	int status;
+	BYTE encryptedData[1024];
 
 	if (rdpudp->state != RDPUDP_STATE_SECURED)
 	{
@@ -1194,6 +1100,7 @@ int rdpudp_write(rdpUdp* rdpudp, BYTE* data, int size)
 	{
 		/* Encrypt the data. */
 		status = rdpudp_tls_encrypt(rdpudp->tls, data, size);
+
 		if (status != size)
 		{
 			WLog_DBG(TAG, "error encrypting data (status=%d)", status);
@@ -1201,6 +1108,7 @@ int rdpudp_write(rdpUdp* rdpudp, BYTE* data, int size)
 		}
 
 		status = rdpudp_tls_read(rdpudp->tls, encryptedData, sizeof(encryptedData));
+
 		if (status < 0)
 		{
 			WLog_DBG(TAG, "error encrypting data (status=%d)", status);
@@ -1223,11 +1131,12 @@ int rdpudp_write(rdpUdp* rdpudp, BYTE* data, int size)
  */
 rdpUdp* rdpudp_new(rdpRdp* rdp)
 {
-	rdpUdp* rdpudp = (rdpUdp*)malloc(sizeof(rdpUdp));
+	rdpUdp* rdpudp;
+
+	rdpudp = (rdpUdp*) calloc(1, sizeof(rdpUdp));
+
 	if (rdpudp)
 	{
-		ZeroMemory(rdpudp, sizeof(rdpUdp));
-
 		rdpudp->rdp = rdp;
 	}
 	
@@ -1236,7 +1145,8 @@ rdpUdp* rdpudp_new(rdpRdp* rdp)
 
 void rdpudp_free(rdpUdp* rdpudp)
 {
-	if (rdpudp == NULL) return;
+	if (!rdpudp)
+		return;
 
 	WLog_DBG(TAG, "rdpudp_free");
 

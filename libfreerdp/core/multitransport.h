@@ -30,6 +30,48 @@ typedef struct rdp_multitransport rdpMultitransport;
 
 #include <winpr/stream.h>
 
+#define RDPTUNNEL_ACTION_CREATEREQUEST		0x0
+#define RDPTUNNEL_ACTION_CREATERESPONSE		0x1
+#define RDPTUNNEL_ACTION_DATA			0x2
+
+typedef struct {
+	BYTE action;
+	BYTE flags;
+	UINT16 payloadLength;
+	BYTE headerLength;
+	BYTE subHeaderLength;
+	BYTE subHeaderType;
+	BYTE* subHeaderData;
+} RDP_TUNNEL_HEADER;
+
+typedef struct {
+	UINT32 requestID;
+	UINT32 reserved;
+	BYTE securityCookie[16];
+} RDP_TUNNEL_CREATEREQUEST;
+
+typedef struct {
+	UINT32 hrResponse;
+} RDP_TUNNEL_CREATERESPONSE;
+
+typedef struct {
+	BYTE* higherLayerDataPointer;
+	UINT16 higherLayerDataLength;
+} RDP_TUNNEL_DATA;
+
+typedef struct {
+	BYTE action;
+	BYTE flags;
+	BYTE subHeaderLength;
+	BYTE subHeaderType;
+	BYTE* subHeaderData;
+	union {
+		RDP_TUNNEL_CREATEREQUEST tunnelCreateRequest;
+		RDP_TUNNEL_CREATERESPONSE tunnelCreateResponse;
+		RDP_TUNNEL_DATA tunnelData;
+	} u;
+} MULTITRANSPORT_PDU;
+
 /**
  * Tunnel definition
  */
