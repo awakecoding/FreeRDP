@@ -607,7 +607,7 @@ static void rdp_udp_process_data(rdpUdp* udp, RDPUDP_PDU* inputPdu)
 	UINT16 flags;
 	UINT16 ackVectorSize;
 	BYTE ackVectorElement[1];
-	BYTE decryptedData[1024];
+	BYTE decryptedData[2048];
 
 	/* If the connection is secured with TLS... */
 	if (udp->tls)

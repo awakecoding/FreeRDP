@@ -64,28 +64,6 @@ struct _RDP_TUNNEL_CREATERESPONSE
 };
 typedef struct _RDP_TUNNEL_CREATERESPONSE RDP_TUNNEL_CREATERESPONSE;
 
-struct _RDP_TUNNEL_DATA
-{
-	BYTE* data;
-	UINT32 length;
-};
-typedef struct _RDP_TUNNEL_DATA RDP_TUNNEL_DATA;
-
-struct _MULTITRANSPORT_PDU
-{
-	BYTE action;
-	BYTE flags;
-	BYTE subHeaderLength;
-	BYTE subHeaderType;
-	BYTE* subHeaderData;
-	union {
-		RDP_TUNNEL_CREATEREQUEST tunnelCreateRequest;
-		RDP_TUNNEL_CREATERESPONSE tunnelCreateResponse;
-		RDP_TUNNEL_DATA tunnelData;
-	} u;
-};
-typedef struct _MULTITRANSPORT_PDU MULTITRANSPORT_PDU;
-
 /**
  * Tunnel definition
  */
@@ -96,6 +74,9 @@ struct rdp_tunnel
 	UINT32 requestId;
 	UINT16 protocol;
 	BYTE securityCookie[16];
+
+	UINT32 payloadOffset;
+	UINT32 payloadLength;
 };
 
 struct rdp_multitransport
