@@ -58,7 +58,7 @@ static int rdp_udp_ack_vector_header_padding(UINT16 uAckVectorSize)
 
 static void rdp_udp_trace_fec_header(RDPUDP_FEC_HEADER* fecHeader)
 {
-	WLog_DBG(TAG, "RDPUDP_FEC_HEADER: snSourceAck: 0x%04X uReceiveWindowSize: 0x%04X uFlags: 0x%04X",
+	WLog_DBG(TAG, "RDPUDP_FEC_HEADER: snSourceAck: 0x%04X uReceiveWindowSize: %d uFlags: 0x%04X",
 			fecHeader->snSourceAck, fecHeader->uReceiveWindowSize, fecHeader->uFlags);
 }
 
@@ -205,7 +205,7 @@ void rdp_udp_write_ack_of_ackvector_header(wStream *s, RDPUDP_ACK_OF_ACKVECTOR_H
 
 static void rdp_udp_trace_ack_vector_header(RDPUDP_ACK_VECTOR_HEADER* ackVectorHeader)
 {
-	WLog_DBG(TAG, "RDPUDP_ACK_VECTOR_HEADER: uAckVectorSize: 0x%04X",
+	WLog_DBG(TAG, "RDPUDP_ACK_VECTOR_HEADER: uAckVectorSize: %d",
 			ackVectorHeader->uAckVectorSize);
 }
 
@@ -361,7 +361,6 @@ static BOOL rdp_udp_decode_pdu(wStream *s, RDPUDP_PDU* pdu)
 		pdu->payloadData = Stream_Pointer(s);
 		pdu->payloadSize = Stream_GetRemainingLength(s);
 	}
-
 
 	pdu->s = s;
 
@@ -589,6 +588,7 @@ static BOOL rdp_udp_process_acks(rdpUdp* udp, RDPUDP_PDU* pdu)
 			index = (index + 1) % udp->sendQueueCapacity;
 			count--;
 		}
+
 		udp->sendQueueHead = index;
 		udp->sendQueueSize = 0;
 
@@ -680,13 +680,13 @@ static void rdp_udp_change_state(rdpUdp* udp, int state)
 static void rdp_udp_secure_connection(rdpUdp* udp, RDPUDP_PDU* inputPdu)
 {
 	int status;
+	UINT16 flags;
+	BYTE buffer[2048];
 	BYTE ackVectorElement[1];
 	UINT16 ackVectorSize = 0;
 
 	if (udp->tls)
 	{
-		WLog_DBG(TAG, "securing with TLS");
-
 		/* If the DATA flag is set... */
 		if (inputPdu->fecHeader.uFlags & RDPUDP_FLAG_DATA)
 		{
@@ -710,9 +710,6 @@ static void rdp_udp_secure_connection(rdpUdp* udp, RDPUDP_PDU* inputPdu)
 		/* Send handshake bytes to the peer. */
 		if (rdp_udp_tls_get_last_error(udp->tls) == SSL_ERROR_WANT_READ)
 		{
-			UINT16 flags;
-			BYTE buffer[2048];
-
 			status = rdp_udp_tls_read(udp->tls, buffer, sizeof(buffer));
 
 			if (status >= 0)
@@ -886,7 +883,7 @@ static DWORD rdp_udp_thread(LPVOID lpParameter)
 
 		if (status < 0)
 		{
-			WLog_DBG(TAG, "select error (errno=%d)", errno);
+			WLog_ERR(TAG, "select error (errno: %d)", errno);
 			break;
 		}
 
@@ -896,11 +893,10 @@ static DWORD rdp_udp_thread(LPVOID lpParameter)
 
 			if (status <= 0)
 			{
-				WLog_DBG(TAG, "recv error (errno=%d)", errno);
+				WLog_ERR(TAG, "recv error (errno: %d)", errno);
 				break;
 			}
 
-			WLog_DBG(TAG, "recv pdulen=%d", status);
 			s = Stream_New(pdu, status);
 			rdp_udp_recv_pdu(rdpudp, s);
 			Stream_Free(s, FALSE);

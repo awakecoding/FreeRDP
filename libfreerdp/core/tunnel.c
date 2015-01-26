@@ -25,7 +25,7 @@
 
 #include "tunnel.h"
 
-#define TAG FREERDP_TAG("core.multitransport")
+#define TAG FREERDP_TAG("core.tunnel")
 
 /**
  *                             Multitransport Connection Sequence
@@ -122,7 +122,7 @@ static void multitransport_trace_tunnel_create_request(RDP_TUNNEL_CREATEREQUEST*
 	BYTE* p = createRequest->securityCookie;
 
 	WLog_DBG(TAG, "RDP_TUNNEL_CREATEREQUEST: RequestId: %d SecurityCookie: "
-			"%02X %02X %02X %02X %02X %02X %02X %02X"
+			"%02X %02X %02X %02X %02X %02X %02X %02X "
 			"%02X %02X %02X %02X %02X %02X %02X %02X",
 			createRequest->requestID,
 			p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7],
@@ -428,8 +428,15 @@ static BOOL multitransport_recv_initiate_request(
 {
 	rdpUdp* udp = NULL;
 	rdpTunnel* tunnel = NULL;
+	BYTE* p = securityCookie;
 
-	WLog_DBG(TAG, "requestId=%x, requestedProtocol=%x", requestId, requestedProtocol);
+	WLog_DBG(TAG, "InitiateMultitransportRequest: RequestId: %d "
+			"RequestedProtocol: %d SecurityCookie: "
+			"%02X %02X %02X %02X %02X %02X %02X %02X "
+			"%02X %02X %02X %02X %02X %02X %02X %02X",
+			requestId, requestedProtocol,
+			p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7],
+			p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15]);
 
 	tunnel = (rdpTunnel*) calloc(1, sizeof(rdpTunnel));
 
