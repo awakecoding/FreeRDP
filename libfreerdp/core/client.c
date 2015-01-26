@@ -236,6 +236,31 @@ int freerdp_channels_post_connect(rdpChannels* channels, freerdp* instance)
 	return 0;
 }
 
+void freerdp_set_drdynvc_tunnel(rdpContext* context, rdpTunnel* tunnel)
+{
+	rdpChannels* channels = context->channels;
+	channels->drdynvcTunnel = tunnel;
+}
+
+int freerdp_recv_drdynvc_data(rdpContext* context, BYTE* data, UINT32 dataLength, UINT32 totalLength, UINT32 dataFlags)
+{
+	CHANNEL_OPEN_DATA* pChannelOpenData;
+	rdpChannels* channels = context->channels;
+
+	pChannelOpenData = freerdp_channels_find_channel_open_data_by_name(channels, "drdynvc");
+
+	if (!pChannelOpenData)
+		return -1;
+
+	if (pChannelOpenData->pChannelOpenEventProc)
+	{
+		pChannelOpenData->pChannelOpenEventProc(pChannelOpenData->OpenHandle,
+			CHANNEL_EVENT_DATA_RECEIVED, data, dataLength, totalLength, dataFlags);
+	}
+
+	return 1;
+}
+
 int freerdp_channels_data(freerdp* instance, UINT16 channelId, BYTE* data, int dataSize, int flags, int totalSize)
 {
 	UINT32 index;
@@ -627,17 +652,34 @@ UINT VCAPITYPE FreeRDP_VirtualChannelWrite(DWORD openHandle, LPVOID pData, ULONG
 	if (pChannelOpenData->flags != 2)
 		return CHANNEL_RC_NOT_OPEN;
 
-	pChannelOpenEvent = (CHANNEL_OPEN_EVENT*) malloc(sizeof(CHANNEL_OPEN_EVENT));
+	if ((pChannelOpenData->pInterface == channels->drdynvc) &&
+			channels->drdynvcTunnel)
+	{
+		rdpTunnel* tunnel = channels->drdynvcTunnel;
 
-	if (!pChannelOpenEvent)
-		return CHANNEL_RC_NO_MEMORY;
+		multitransport_send_tunnel_data(tunnel, pData, dataLength);
 
-	pChannelOpenEvent->Data = pData;
-	pChannelOpenEvent->DataLength = dataLength;
-	pChannelOpenEvent->UserData = pUserData;
-	pChannelOpenEvent->pChannelOpenData = pChannelOpenData;
+		if (pChannelOpenData->pChannelOpenEventProc)
+		{
+			pChannelOpenData->pChannelOpenEventProc(pChannelOpenData->OpenHandle,
+				CHANNEL_EVENT_WRITE_COMPLETE, pUserData, dataLength, dataLength, 0);
+		}
+	}
+	else
+	{
+		pChannelOpenEvent = (CHANNEL_OPEN_EVENT*) malloc(sizeof(CHANNEL_OPEN_EVENT));
 
-	MessageQueue_Post(channels->queue, (void*) channels, 0, (void*) pChannelOpenEvent, NULL);
+		if (!pChannelOpenEvent)
+			return CHANNEL_RC_NO_MEMORY;
+
+		pChannelOpenEvent->Data = pData;
+		pChannelOpenEvent->DataLength = dataLength;
+		pChannelOpenEvent->UserData = pUserData;
+		pChannelOpenEvent->pChannelOpenData = pChannelOpenData;
+
+		MessageQueue_Post(channels->queue, (void*) channels,
+				0, (void*) pChannelOpenEvent, NULL);
+	}
 
 	return CHANNEL_RC_OK;
 }

@@ -150,7 +150,7 @@ static void rdp_udp_write_source_payload_header(wStream* s, RDPUDP_SOURCE_PAYLOA
 static void rdp_udp_trace_syndata_payload(RDPUDP_SYNDATA_PAYLOAD* syndataPayload)
 {
 	WLog_DBG(TAG, "RDPUDP_SYNDATA_PAYLOAD: snInitialSequenceNumber: 0x%04X "
-			"uUpStreamMtu: 0x%04X uDownStreamMtu: 0x%04X",
+			"uUpStreamMtu: %d uDownStreamMtu: %d",
 			syndataPayload->snInitialSequenceNumber,
 			syndataPayload->uUpStreamMtu, syndataPayload->uDownStreamMtu);
 }

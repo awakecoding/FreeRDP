@@ -20,6 +20,7 @@
 #ifndef __MULTITRANSPORT_H
 #define __MULTITRANSPORT_H
 
+typedef struct rdp_tunnel rdpTunnel;
 typedef struct rdp_multitransport rdpMultitransport;
 
 #include "rdp.h"
@@ -65,8 +66,8 @@ typedef struct _RDP_TUNNEL_CREATERESPONSE RDP_TUNNEL_CREATERESPONSE;
 
 struct _RDP_TUNNEL_DATA
 {
-	BYTE* higherLayerDataPointer;
-	UINT16 higherLayerDataLength;
+	BYTE* data;
+	UINT32 length;
 };
 typedef struct _RDP_TUNNEL_DATA RDP_TUNNEL_DATA;
 
@@ -91,11 +92,11 @@ typedef struct _MULTITRANSPORT_PDU MULTITRANSPORT_PDU;
 struct rdp_tunnel
 {
 	rdpUdp* udp;
+	rdpContext* context;
 	UINT32 requestId;
 	UINT16 protocol;
 	BYTE securityCookie[16];
 };
-typedef struct rdp_tunnel rdpTunnel;
 
 struct rdp_multitransport
 {
@@ -105,6 +106,7 @@ struct rdp_multitransport
 };
 
 int rdp_recv_multitransport_packet(rdpRdp* rdp, wStream* s);
+int multitransport_send_tunnel_data(rdpTunnel* tunnel, const BYTE* data, UINT32 length);
 
 rdpMultitransport* multitransport_new(rdpRdp* rdp);
 void multitransport_free(rdpMultitransport* multitransport);

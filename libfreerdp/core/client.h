@@ -78,6 +78,8 @@ struct rdp_channel_init_data
 };
 typedef struct rdp_channel_init_data CHANNEL_INIT_DATA;
 
+#include "tunnel.h"
+
 struct rdp_channels
 {
 	/* internal */
@@ -103,7 +105,11 @@ struct rdp_channels
 
 	wMessageQueue* queue;
 
+	rdpTunnel* drdynvcTunnel;
 	DrdynvcClientContext* drdynvc;
 };
+
+void freerdp_set_drdynvc_tunnel(rdpContext* context, rdpTunnel* tunnel);
+int freerdp_recv_drdynvc_data(rdpContext* context, BYTE* data, UINT32 dataLength, UINT32 totalLength, UINT32 dataFlags);
 
 #endif /* FREERDP_CORE_CLIENT_H */
