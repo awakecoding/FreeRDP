@@ -366,8 +366,14 @@ static BOOL tsmf_ffmpeg_decode_audio(ITSMFDecoder* decoder, const BYTE *data, UI
 		/* Ensure enough space for decoding */
 		if (mdecoder->decoded_size_max - mdecoder->decoded_size < MAX_AUDIO_FRAME_SIZE)
 		{
+			BYTE *tmp_data;
+
+			tmp_data = realloc(mdecoder->decoded_data, mdecoder->decoded_size_max * 2 + 16);
+			if (!tmp_data)
+				return FALSE;
 			mdecoder->decoded_size_max = mdecoder->decoded_size_max * 2 + 16;
-			mdecoder->decoded_data = realloc(mdecoder->decoded_data, mdecoder->decoded_size_max);
+			mdecoder->decoded_data = tmp_data;
+
 			dst = (BYTE *)(((uintptr_t)mdecoder->decoded_data + 15) & ~ 0x0F);
 			if (dst - mdecoder->decoded_data != dst_offset)
 			{
@@ -493,14 +499,15 @@ static void tsmf_ffmpeg_free(ITSMFDecoder* decoder)
 	TSMFFFmpegDecoder* mdecoder = (TSMFFFmpegDecoder*) decoder;
 	if (mdecoder->frame)
 		av_free(mdecoder->frame);
-	if (mdecoder->decoded_data)
-		free(mdecoder->decoded_data);
+
+	free(mdecoder->decoded_data);
+
 	if (mdecoder->codec_context)
 	{
 		if (mdecoder->prepared)
 			avcodec_close(mdecoder->codec_context);
-		if (mdecoder->codec_context->extradata)
-			free(mdecoder->codec_context->extradata);
+
+		free(mdecoder->codec_context->extradata);
 		av_free(mdecoder->codec_context);
 	}
 	free(decoder);

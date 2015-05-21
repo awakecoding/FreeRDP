@@ -3,6 +3,8 @@
  * Windows Terminal Services API
  *
  * Copyright 2013 Marc-Andre Moreau <marcandre.moreau@gmail.com>
+ * Copyright 2015 DI (FH) Martin Haimberger <martin.haimberger@thincast.com>
+ * Copyright 2015 Copyright 2015 Thincast Technologies GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -216,6 +218,16 @@ BOOL WINAPI WTSStartRemoteControlSessionW(LPWSTR pTargetServerName, ULONG Target
 BOOL WINAPI WTSStartRemoteControlSessionA(LPSTR pTargetServerName, ULONG TargetLogonId, BYTE HotkeyVk, USHORT HotkeyModifiers)
 {
 	WTSAPI_STUB_CALL_BOOL(StartRemoteControlSessionA, pTargetServerName, TargetLogonId, HotkeyVk, HotkeyModifiers);
+}
+
+BOOL WINAPI WTSStartRemoteControlSessionExW(LPWSTR pTargetServerName, ULONG TargetLogonId, BYTE HotkeyVk, USHORT HotkeyModifiers, DWORD flags)
+{
+	WTSAPI_STUB_CALL_BOOL(StartRemoteControlSessionExW, pTargetServerName, TargetLogonId, HotkeyVk, HotkeyModifiers, flags);
+}
+
+BOOL WINAPI WTSStartRemoteControlSessionExA(LPSTR pTargetServerName, ULONG TargetLogonId, BYTE HotkeyVk, USHORT HotkeyModifiers, DWORD flags)
+{
+	WTSAPI_STUB_CALL_BOOL(StartRemoteControlSessionExA, pTargetServerName, TargetLogonId, HotkeyVk, HotkeyModifiers, flags);
 }
 
 BOOL WINAPI WTSStopRemoteControlSession(ULONG LogonId)
@@ -536,6 +548,16 @@ BOOL CDECL WTSGetChildSessionId(PULONG pSessionId)
 	WTSAPI_STUB_CALL_BOOL(GetChildSessionId, pSessionId);
 }
 
+BOOL CDECL WTSLogonUser(HANDLE hServer, LPCSTR username, LPCSTR password, LPCSTR domain)
+{
+	WTSAPI_STUB_CALL_BOOL(LogonUser, hServer, username, password, domain);
+}
+
+BOOL CDECL WTSLogoffUser(HANDLE hServer)
+{
+	WTSAPI_STUB_CALL_BOOL(LogoffUser, hServer);
+}
+
 #ifndef _WIN32
 
 /**
@@ -656,7 +678,7 @@ static BOOL LoadAndInitialize(char* library)
 void InitializeWtsApiStubs_Env()
 {
 	DWORD nSize;
-	char* env = NULL;
+	char *env = NULL;
 
 	if (g_WtsApi)
 		return;
@@ -664,15 +686,15 @@ void InitializeWtsApiStubs_Env()
 	nSize = GetEnvironmentVariableA("WTSAPI_LIBRARY", NULL, 0);
 
 	if (!nSize)
-	{
 		return;
-	}
 
 	env = (LPSTR) malloc(nSize);
-	nSize = GetEnvironmentVariableA("WTSAPI_LIBRARY", env, nSize);
-
 	if (env)
-		LoadAndInitialize(env);
+	{
+		if (GetEnvironmentVariableA("WTSAPI_LIBRARY", env, nSize))
+			LoadAndInitialize(env);
+		free(env);
+	}
 }
 
 #define FREERDS_LIBRARY_NAME "libfreerds-fdsapi.so"

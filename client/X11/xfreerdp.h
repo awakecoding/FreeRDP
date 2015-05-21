@@ -38,6 +38,15 @@ typedef struct xf_context xfContext;
 #include <freerdp/codec/progressive.h>
 #include <freerdp/codec/region.h>
 
+struct xf_FullscreenMonitors
+{
+	UINT32 top;
+	UINT32 bottom;
+	UINT32 left;
+	UINT32 right;
+};
+typedef struct xf_FullscreenMonitors xfFullscreenMonitors;
+
 struct xf_WorkArea
 {
 	UINT32 x;
@@ -83,8 +92,8 @@ struct xf_context
 	int bpp;
 	int xfds;
 	int depth;
-	int width;
-	int height;
+	int sessionWidth;
+	int sessionHeight;
 	int srcBpp;
 	GC gc_mono;
 	BOOL invert;
@@ -102,13 +111,16 @@ struct xf_context
 	int scanline_pad;
 	BOOL big_endian;
 	BOOL fullscreen;
+	BOOL decorations;
 	BOOL grab_keyboard;
 	BOOL unobscured;
 	BOOL debug;
+	HANDLE x11event;
 	xfWindow* window;
 	xfAppWindow* appWindow;
 	xfPointer* pointer;
 	xfWorkArea workArea;
+	xfFullscreenMonitors fullscreenMonitors;
 	int current_desktop;
 	BOOL remote_app;
 	BOOL disconnect;
@@ -121,10 +133,8 @@ struct xf_context
 	UINT32 bitmap_size;
 	BYTE* bitmap_buffer;
 	BYTE* primary_buffer;
-	REGION16 invalidRegion;
 	BOOL inGfxFrame;
 	BOOL graphicsReset;
-	UINT16 outputSurfaceId;
 
 	BOOL frame_begin;
 	UINT16 frame_x1;
@@ -140,6 +150,11 @@ struct xf_context
 	UINT8 blue_shift_r;
 
 	int XInputOpcode;
+
+	int savedWidth;
+	int savedHeight;
+	int savedPosX;
+	int savedPosY;
 
 #ifdef WITH_XRENDER
 	int scaledWidth;
@@ -179,6 +194,8 @@ struct xf_context
 	Atom _NET_WM_STATE_SKIP_TASKBAR;
 	Atom _NET_WM_STATE_SKIP_PAGER;
 
+	Atom _NET_WM_FULLSCREEN_MONITORS;
+
 	Atom _NET_WM_WINDOW_TYPE;
 	Atom _NET_WM_WINDOW_TYPE_NORMAL;
 	Atom _NET_WM_WINDOW_TYPE_DIALOG;
@@ -205,7 +222,7 @@ struct xf_context
 	BOOL xrenderAvailable;
 };
 
-void xf_create_window(xfContext* xfc);
+BOOL xf_create_window(xfContext* xfc);
 void xf_toggle_fullscreen(xfContext* xfc);
 void xf_toggle_control(xfContext* xfc);
 BOOL xf_post_connect(freerdp* instance);

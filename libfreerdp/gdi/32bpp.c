@@ -90,8 +90,9 @@ int FillRect_32bpp(HGDI_DC hdc, HGDI_RECT rect, HGDI_BRUSH hbr)
 		}
 	}
 
-	gdi_InvalidateRegion(hdc, nXDest, nYDest, nWidth, nHeight);
-	return 0;
+	if (!gdi_InvalidateRegion(hdc, nXDest, nYDest, nWidth, nHeight))
+		return 0;
+	return 1;
 }
 
 static int BitBlt_BLACKNESS_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight)
@@ -138,7 +139,7 @@ static int BitBlt_BLACKNESS_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int n
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_WHITENESS_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight)
@@ -154,7 +155,7 @@ static int BitBlt_WHITENESS_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int n
 			memset(dstp, 0xFF, nWidth * hdcDest->bytesPerPixel);
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_SRCCOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -164,7 +165,7 @@ static int BitBlt_SRCCOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWi
 	BYTE* dstp;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	if ((hdcDest->selectedObject != hdcSrc->selectedObject) ||
 	    gdi_CopyOverlap(nXDest, nYDest, nWidth, nHeight, nXSrc, nYSrc) == 0)
@@ -178,7 +179,7 @@ static int BitBlt_SRCCOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWi
 				memmove(dstp, srcp, nWidth * hdcDest->bytesPerPixel);
 		}
 
-		return 0;
+		return 1;
 	}
 	
 	if (nYSrc < nYDest)
@@ -218,7 +219,7 @@ static int BitBlt_SRCCOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWi
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_NOTSRCCOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -228,7 +229,7 @@ static int BitBlt_NOTSRCCOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int 
 	UINT32* dstp;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	for (y = 0; y < nHeight; y++)
 	{
@@ -246,7 +247,7 @@ static int BitBlt_NOTSRCCOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int 
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_DSTINVERT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight)
@@ -268,7 +269,7 @@ static int BitBlt_DSTINVERT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int n
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_SRCERASE_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -278,7 +279,7 @@ static int BitBlt_SRCERASE_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nW
 	UINT32* dstp;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	for (y = 0; y < nHeight; y++)
 	{
@@ -296,7 +297,7 @@ static int BitBlt_SRCERASE_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nW
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_NOTSRCERASE_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -306,7 +307,7 @@ static int BitBlt_NOTSRCERASE_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int
 	UINT32* dstp;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	for (y = 0; y < nHeight; y++)
 	{
@@ -324,7 +325,7 @@ static int BitBlt_NOTSRCERASE_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_SRCINVERT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -334,7 +335,7 @@ static int BitBlt_SRCINVERT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int n
 	UINT32* dstp;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	for (y = 0; y < nHeight; y++)
 	{
@@ -352,7 +353,7 @@ static int BitBlt_SRCINVERT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int n
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_SRCAND_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -362,7 +363,7 @@ static int BitBlt_SRCAND_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWid
 	UINT32* dstp;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	for (y = 0; y < nHeight; y++)
 	{
@@ -380,7 +381,7 @@ static int BitBlt_SRCAND_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWid
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_SRCPAINT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -390,7 +391,7 @@ static int BitBlt_SRCPAINT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nW
 	UINT32* dstp;
 		
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	for (y = 0; y < nHeight; y++)
 	{
@@ -408,7 +409,7 @@ static int BitBlt_SRCPAINT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nW
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_DSPDxax_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -423,7 +424,7 @@ static int BitBlt_DSPDxax_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWi
 	HGDI_BITMAP hSrcBmp;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	/* D = (S & P) | (~S & D) */
 
@@ -476,7 +477,7 @@ static int BitBlt_DSPDxax_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWi
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_PSDPxax_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -488,7 +489,7 @@ static int BitBlt_PSDPxax_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWi
 	UINT32 color32;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	/* D = (S & D) | (~S & P) */
 
@@ -533,7 +534,7 @@ static int BitBlt_PSDPxax_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWi
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_SPDSxax_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -545,7 +546,7 @@ static int BitBlt_SPDSxax_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWi
 	UINT32 color32;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	/* D = S ^ (P & (D ^ S)) */
 
@@ -590,7 +591,7 @@ static int BitBlt_SPDSxax_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWi
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_SPna_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -601,7 +602,7 @@ static int BitBlt_SPna_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth
 	UINT32* patp;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	for (y = 0; y < nHeight; y++)
 	{
@@ -621,7 +622,7 @@ static int BitBlt_SPna_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth
 		}
 	}
 	
-	return 0;
+	return 1;
 }
 
 static int BitBlt_DSna_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -631,7 +632,7 @@ static int BitBlt_DSna_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth
 	UINT32* dstp;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	for (y = 0; y < nHeight; y++)
 	{
@@ -649,7 +650,7 @@ static int BitBlt_DSna_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_DPa_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight)
@@ -674,7 +675,7 @@ static int BitBlt_DPa_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth,
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_PDxn_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight)
@@ -699,7 +700,7 @@ static int BitBlt_PDxn_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_MERGECOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -710,7 +711,7 @@ static int BitBlt_MERGECOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int n
 	UINT32* patp;
 	
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	for (y = 0; y < nHeight; y++)
 	{
@@ -730,7 +731,7 @@ static int BitBlt_MERGECOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int n
 		}
 	}
 	
-	return 0;
+	return 1;
 }
 
 static int BitBlt_MERGEPAINT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -740,7 +741,7 @@ static int BitBlt_MERGEPAINT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int 
 	UINT32* dstp;
 	
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	for (y = 0; y < nHeight; y++)
 	{
@@ -758,7 +759,7 @@ static int BitBlt_MERGEPAINT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int 
 		}
 	}
 	
-	return 0;
+	return 1;
 }
 
 static int BitBlt_PATCOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight)
@@ -817,7 +818,7 @@ static int BitBlt_PATCOPY_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWi
 		}
 	}
 	
-	return 0;
+	return 1;
 }
 
 static int BitBlt_PATINVERT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight)
@@ -863,7 +864,7 @@ static int BitBlt_PATINVERT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int n
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 static int BitBlt_PATPAINT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc)
@@ -874,7 +875,7 @@ static int BitBlt_PATPAINT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nW
 	UINT32* patp;
 
 	if (!hdcDest || !hdcSrc)
-		return 1;
+		return 0;
 
 	for (y = 0; y < nHeight; y++)
 	{
@@ -893,7 +894,7 @@ static int BitBlt_PATPAINT_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nW
 		}
 	}
 	
-	return 0;
+	return 1;
 }
 
 int BitBlt_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, HGDI_DC hdcSrc, int nXSrc, int nYSrc, int rop)
@@ -912,92 +913,70 @@ int BitBlt_32bpp(HGDI_DC hdcDest, int nXDest, int nYDest, int nWidth, int nHeigh
 			return 0;
 	}
 	
-	gdi_InvalidateRegion(hdcDest, nXDest, nYDest, nWidth, nHeight);
-
-	if (!hdcDest)
-		return 1;
+	if (!gdi_InvalidateRegion(hdcDest, nXDest, nYDest, nWidth, nHeight))
+		return 0;
 
 	switch (rop)
 	{
 		case GDI_BLACKNESS:
 			return BitBlt_BLACKNESS_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight);
-			break;
 
 		case GDI_WHITENESS:
 			return BitBlt_WHITENESS_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight);
-			break;
 
 		case GDI_SRCCOPY:
 			return BitBlt_SRCCOPY_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_SPna:
 			return BitBlt_SPna_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_DSna:
 			return BitBlt_DSna_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_DSPDxax:
 			return BitBlt_DSPDxax_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
-			
+
 		case GDI_PSDPxax:
 			return BitBlt_PSDPxax_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_SPDSxax:
 			return BitBlt_SPDSxax_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_NOTSRCCOPY:
 			return BitBlt_NOTSRCCOPY_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_DSTINVERT:
 			return BitBlt_DSTINVERT_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight);
-			break;
 
 		case GDI_SRCERASE:
 			return BitBlt_SRCERASE_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_NOTSRCERASE:
 			return BitBlt_NOTSRCERASE_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_SRCINVERT:
 			return BitBlt_SRCINVERT_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_SRCAND:
 			return BitBlt_SRCAND_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_SRCPAINT:
 			return BitBlt_SRCPAINT_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_MERGECOPY:
 			return BitBlt_MERGECOPY_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_MERGEPAINT:
 			return BitBlt_MERGEPAINT_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 
 		case GDI_PATCOPY:
 			return BitBlt_PATCOPY_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight);
-			break;
 
 		case GDI_PATINVERT:
 			return BitBlt_PATINVERT_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight);
-			break;
 
 		case GDI_PATPAINT:
 			return BitBlt_PATPAINT_32bpp(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc);
-			break;
 	}
 
 	WLog_ERR(TAG,  "BitBlt: unknown rop: 0x%08X", rop);
@@ -1009,37 +988,31 @@ int PatBlt_32bpp(HGDI_DC hdc, int nXLeft, int nYLeft, int nWidth, int nHeight, i
 	if (gdi_ClipCoords(hdc, &nXLeft, &nYLeft, &nWidth, &nHeight, NULL, NULL) == 0)
 		return 0;
 	
-	gdi_InvalidateRegion(hdc, nXLeft, nYLeft, nWidth, nHeight);
+	if (!gdi_InvalidateRegion(hdc, nXLeft, nYLeft, nWidth, nHeight))
+		return 0;
 
 	switch (rop)
 	{
 		case GDI_PATCOPY:
 			return BitBlt_PATCOPY_32bpp(hdc, nXLeft, nYLeft, nWidth, nHeight);
-			break;
 
 		case GDI_PATINVERT:
 			return BitBlt_PATINVERT_32bpp(hdc, nXLeft, nYLeft, nWidth, nHeight);
-			break;
-			
+
 		case GDI_DSTINVERT:
 			return BitBlt_DSTINVERT_32bpp(hdc, nXLeft, nYLeft, nWidth, nHeight);
-			break;
 
 		case GDI_BLACKNESS:
 			return BitBlt_BLACKNESS_32bpp(hdc, nXLeft, nYLeft, nWidth, nHeight);
-			break;
 
 		case GDI_WHITENESS:
 			return BitBlt_WHITENESS_32bpp(hdc, nXLeft, nYLeft, nWidth, nHeight);
-			break;
 
 		case GDI_DPa:
 			return BitBlt_DPa_32bpp(hdc, nXLeft, nYLeft, nWidth, nHeight);
-			break;
 
 		case GDI_PDxn:
 			return BitBlt_PDxn_32bpp(hdc, nXLeft, nYLeft, nWidth, nHeight);
-			break;
 
 		default:
 			break;

@@ -22,9 +22,6 @@
 #endif
 
 #include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include <winpr/crt.h>
 #include <winpr/wlog.h>
@@ -955,9 +952,16 @@ static int rdpgfx_plugin_terminated(IWTSPlugin* pPlugin)
 	WLog_Print(gfx->log, WLOG_DEBUG, "Terminated");
 
 	if (gfx->listener_callback)
+	{
 		free(gfx->listener_callback);
+		gfx->listener_callback = NULL;
+	}
 
-	zgfx_context_free(gfx->zgfx);
+	if (gfx->zgfx)
+	{
+		zgfx_context_free(gfx->zgfx);
+		gfx->zgfx = NULL;
+	}
 
 	count = HashTable_GetKeys(gfx->SurfaceTable, &pKeys);
 
@@ -1014,6 +1018,35 @@ int rdpgfx_set_surface_data(RdpgfxClientContext* context, UINT16 surfaceId, void
 		HashTable_Remove(gfx->SurfaceTable, (void*) key);
 
 	return 1;
+}
+
+int rdpgfx_get_surface_ids(RdpgfxClientContext* context, UINT16** ppSurfaceIds)
+{
+	int count;
+	int index;
+	UINT16* pSurfaceIds;
+	ULONG_PTR* pKeys = NULL;
+	RDPGFX_PLUGIN* gfx = (RDPGFX_PLUGIN*) context->handle;
+
+	count = HashTable_GetKeys(gfx->SurfaceTable, &pKeys);
+
+	if (count < 1)
+		return 0;
+
+	pSurfaceIds = (UINT16*) malloc(count * sizeof(UINT16));
+
+	if (!pSurfaceIds)
+		return -1;
+
+	for (index = 0; index < count; index++)
+	{
+		pSurfaceIds[index] = pKeys[index] - 1;
+	}
+
+	free(pKeys);
+	*ppSurfaceIds = pSurfaceIds;
+
+	return count;
 }
 
 void* rdpgfx_get_surface_data(RdpgfxClientContext* context, UINT16 surfaceId)
@@ -1082,7 +1115,6 @@ int DVCPluginEntry(IDRDYNVC_ENTRY_POINTS* pEntryPoints)
 		gfx->iface.Terminated = rdpgfx_plugin_terminated;
 
 		gfx->SurfaceTable = HashTable_New(TRUE);
-
 		if (!gfx->SurfaceTable)
 		{
 			free (gfx);
@@ -1113,6 +1145,7 @@ int DVCPluginEntry(IDRDYNVC_ENTRY_POINTS* pEntryPoints)
 
 		context->handle = (void*) gfx;
 
+		context->GetSurfaceIds = rdpgfx_get_surface_ids;
 		context->SetSurfaceData = rdpgfx_set_surface_data;
 		context->GetSurfaceData = rdpgfx_get_surface_data;
 		context->SetCacheSlotData = rdpgfx_set_cache_slot_data;
@@ -1124,8 +1157,8 @@ int DVCPluginEntry(IDRDYNVC_ENTRY_POINTS* pEntryPoints)
 
 		if (!gfx->zgfx)
 		{
-			free (gfx);
-			free (context);
+			free(gfx);
+			free(context);
 			return -1;
 		}
 

@@ -154,8 +154,7 @@ static void audin_opensles_free(IAudinDevice* device)
 
 	freerdp_dsp_context_free(opensles->dsp_context);
 
-	if (opensles->device_name)
-		free(opensles->device_name);
+	free(opensles->device_name);
 
 	free(opensles);
 }
@@ -333,7 +332,7 @@ static void audin_opensles_close(IAudinDevice* device)
 
 static COMMAND_LINE_ARGUMENT_A audin_opensles_args[] =
 {
-	{ "audio-dev", COMMAND_LINE_VALUE_REQUIRED, "<device>",
+	{ "dev", COMMAND_LINE_VALUE_REQUIRED, "<device>",
 		NULL, NULL, -1, NULL, "audio device name" },
 	{ NULL, 0, NULL, NULL, NULL, -1, NULL, NULL }
 };
@@ -348,7 +347,7 @@ static int audin_opensles_parse_addin_args(AudinOpenSLESDevice* device,
 
 	DEBUG_DVC("device=%p, args=%p", device, args);
 
-	flags = COMMAND_LINE_SIGIL_NONE | COMMAND_LINE_SEPARATOR_COLON;
+	flags = COMMAND_LINE_SIGIL_NONE | COMMAND_LINE_SEPARATOR_COLON | COMMAND_LINE_IGN_UNKNOWN_KEYWORD;
 
 	status = CommandLineParseArgumentsA(args->argc, (const char**) args->argv,
 			audin_opensles_args, flags, opensles, NULL, NULL);
@@ -364,7 +363,7 @@ static int audin_opensles_parse_addin_args(AudinOpenSLESDevice* device,
 
 		CommandLineSwitchStart(arg)
 
-		CommandLineSwitchCase(arg, "audio-dev")
+		CommandLineSwitchCase(arg, "dev")
 		{
 			opensles->device_name = _strdup(arg->Value);
 		}

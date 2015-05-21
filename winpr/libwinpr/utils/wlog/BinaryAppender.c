@@ -69,33 +69,36 @@ void WLog_BinaryAppender_SetOutputFilePath(wLog* log, wLogBinaryAppender* append
 
 int WLog_BinaryAppender_Open(wLog* log, wLogBinaryAppender* appender)
 {
-	DWORD ProcessId;
-
-	ProcessId = GetCurrentProcessId();
-
 	if (!log || !appender)
 		return -1;
+
+	if (!appender->FileName)
+	{
+		appender->FileName = (char*) malloc(MAX_PATH);
+		if (!appender->FileName)
+			return -1;
+		sprintf_s(appender->FileName, MAX_PATH, "%u.wlog", (unsigned int) GetCurrentProcessId());
+	}
 
 	if (!appender->FilePath)
 	{
 		appender->FilePath = GetKnownSubPath(KNOWN_PATH_TEMP, "wlog");
-	}
-
-	if (!PathFileExistsA(appender->FilePath))
-	{
-		CreateDirectoryA(appender->FilePath, 0);
-		UnixChangeFileMode(appender->FilePath, 0xFFFF);
-	}
-
-	if (!appender->FileName)
-	{
-		appender->FileName = (char*) malloc(256);
-		sprintf_s(appender->FileName, 256, "%u.wlog", (unsigned int) ProcessId);
+		if (!appender->FilePath)
+			return -1;
 	}
 
 	if (!appender->FullFileName)
 	{
 		appender->FullFileName = GetCombinedPath(appender->FilePath, appender->FileName);
+		if (!appender->FullFileName)
+			return -1;
+	}
+
+	if (!PathFileExistsA(appender->FilePath))
+	{
+		if (!CreateDirectoryA(appender->FilePath, 0))
+			return -1;
+		UnixChangeFileMode(appender->FilePath, 0xFFFF);
 	}
 
 	appender->FileDescriptor = fopen(appender->FullFileName, "a+");
@@ -215,15 +218,9 @@ void WLog_BinaryAppender_Free(wLog* log, wLogBinaryAppender* appender)
 {
 	if (appender)
 	{
-		if (appender->FileName)
-			free(appender->FileName);
-
-		if (appender->FilePath)
-			free(appender->FilePath);
-
-		if (appender->FullFileName)
-			free(appender->FullFileName);
-
+		free(appender->FileName);
+		free(appender->FilePath);
+		free(appender->FullFileName);
 		free(appender);
 	}
 }

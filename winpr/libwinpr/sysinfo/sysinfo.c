@@ -54,6 +54,7 @@
 #ifndef _WIN32
 
 #include <time.h>
+#include <sys/time.h>
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -105,7 +106,7 @@ static DWORD GetNumberOfProcessors()
 		int mib[4];
 		size_t length = sizeof(numCPUs);
 		mib[0] = CTL_HW;
-#if defined(__FreeBSD__)
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
 		mib[1] = HW_NCPU;
 #else
 		mib[1] = HW_AVAILCPU;
@@ -129,11 +130,35 @@ static DWORD GetNumberOfProcessors()
 	return numCPUs;
 }
 
+static DWORD GetSystemPageSize()
+{
+	DWORD dwPageSize = 0;
+	long sc_page_size = -1;
+
+#if defined(_SC_PAGESIZE)
+	if (sc_page_size < 0)
+		sc_page_size = sysconf(_SC_PAGESIZE);
+#endif
+
+#if defined(_SC_PAGE_SIZE)
+	if (sc_page_size < 0)
+		sc_page_size = sysconf(_SC_PAGE_SIZE);
+#endif
+
+	if (sc_page_size > 0)
+		dwPageSize = (DWORD) sc_page_size;
+
+	if (dwPageSize < 4096)
+		dwPageSize = 4096;
+
+	return dwPageSize;
+}
+
 void GetSystemInfo(LPSYSTEM_INFO lpSystemInfo)
 {
 	lpSystemInfo->wProcessorArchitecture = GetProcessorArchitecture();
 	lpSystemInfo->wReserved = 0;
-	lpSystemInfo->dwPageSize = 0;
+	lpSystemInfo->dwPageSize = GetSystemPageSize();
 	lpSystemInfo->lpMinimumApplicationAddress = NULL;
 	lpSystemInfo->lpMaximumApplicationAddress = NULL;
 	lpSystemInfo->dwActiveProcessorMask = 0;
@@ -154,7 +179,9 @@ BOOL GetComputerNameA(LPSTR lpBuffer, LPDWORD lpnSize)
 	char* dot;
 	int length;
 	char hostname[256];
-	gethostname(hostname, sizeof(hostname));
+
+	if (gethostname(hostname, sizeof(hostname)) == -1)
+		return FALSE;
 	length = strlen(hostname);
 	dot = strchr(hostname, '.');
 
@@ -164,11 +191,11 @@ BOOL GetComputerNameA(LPSTR lpBuffer, LPDWORD lpnSize)
 	if (*lpnSize <= length)
 	{
 		*lpnSize = length + 1;
-		return 0;
+		return FALSE;
 	}
 
 	if (!lpBuffer)
-		return 0;
+		return FALSE;
 
 	CopyMemory(lpBuffer, hostname, length);
 	lpBuffer[length] = '\0';
@@ -183,7 +210,8 @@ BOOL GetComputerNameExA(COMPUTER_NAME_FORMAT NameType, LPSTR lpBuffer, LPDWORD l
 	if ((NameType == ComputerNameNetBIOS) || (NameType == ComputerNamePhysicalNetBIOS))
 		return GetComputerNameA(lpBuffer, lpnSize);
 
-	gethostname(hostname, sizeof(hostname));
+	if (gethostname(hostname, sizeof(hostname)) == -1)
+		return FALSE;
 	length = strlen(hostname);
 
 	switch (NameType)
@@ -217,7 +245,7 @@ BOOL GetComputerNameExA(COMPUTER_NAME_FORMAT NameType, LPSTR lpBuffer, LPDWORD l
 BOOL GetComputerNameExW(COMPUTER_NAME_FORMAT NameType, LPWSTR lpBuffer, LPDWORD nSize)
 {
 	WLog_ERR(TAG, "GetComputerNameExW unimplemented");
-	return 0;
+	return FALSE;
 }
 
 /* OSVERSIONINFOEX Structure:
@@ -246,16 +274,16 @@ BOOL GetVersionExA(LPOSVERSIONINFOA lpVersionInformation)
 			lpVersionInformationEx->wReserved = 0;
 		}
 
-		return 1;
+		return TRUE;
 	}
 
-	return 0;
+	return FALSE;
 }
 
 BOOL GetVersionExW(LPOSVERSIONINFOW lpVersionInformation)
 {
 	WLog_ERR(TAG, "GetVersionExW unimplemented");
-	return 1;
+	return TRUE;
 }
 
 void GetSystemTime(LPSYSTEMTIME lpSystemTime)

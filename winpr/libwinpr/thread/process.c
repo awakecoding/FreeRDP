@@ -80,9 +80,6 @@
 #include "../handle/handle.h"
 #include "../security/security.h"
 
-static HANDLE_CLOSE_CB _ProcessHandleCloseCb;
-static pthread_once_t process_initialized = PTHREAD_ONCE_INIT;
-
 char** EnvironmentBlockToEnvpA(LPCH lpszEnvironmentBlock)
 {
 	char* p;
@@ -92,6 +89,9 @@ char** EnvironmentBlockToEnvpA(LPCH lpszEnvironmentBlock)
 	char** envp = NULL;
 
 	count = 0;
+	if (!lpszEnvironmentBlock)
+		return NULL;
+
 	p = (char*) lpszEnvironmentBlock;
 
 	while (p[0] && p[1])
@@ -105,12 +105,23 @@ char** EnvironmentBlockToEnvpA(LPCH lpszEnvironmentBlock)
 	p = (char*) lpszEnvironmentBlock;
 
 	envp = (char**) calloc(count + 1, sizeof(char*));
+	if (!envp)
+		return NULL;
 	envp[count] = NULL;
 
 	while (p[0] && p[1])
 	{
 		length = strlen(p);
 		envp[index] = _strdup(p);
+		if (!envp[index])
+		{
+			for (index -= 1; index >= 0; --index)
+			{
+				free(envp[index]);
+			}
+			free(envp);
+			return NULL;
+		}
 		p += (length + 1);
 		index++;
 	}
@@ -152,6 +163,9 @@ char* FindApplicationPath(char* application)
 		return application;
 
 	lpSystemPath = (LPSTR) malloc(nSize);
+	if (!lpSystemPath)
+		return NULL;
+
 	nSize = GetEnvironmentVariableA("PATH", lpSystemPath, nSize);
 
 	save = NULL;
@@ -202,6 +216,8 @@ BOOL _CreateProcessExA(HANDLE hToken, DWORD dwLogonFlags,
 	lpszEnvironmentBlock = NULL;
 
 	pArgs = CommandLineToArgvA(lpCommandLine, &numArgs);
+	if (!pArgs)
+		return FALSE;
 
 	flags = 0;
 
@@ -214,8 +230,12 @@ BOOL _CreateProcessExA(HANDLE hToken, DWORD dwLogonFlags,
 	else
 	{
 		lpszEnvironmentBlock = GetEnvironmentStrings();
+		if (lpszEnvironmentBlock)
+			goto finish;
 		envp = EnvironmentBlockToEnvpA(lpszEnvironmentBlock);
 	}
+	if (!envp)
+		goto finish;
 
 	filename = FindApplicationPath(pArgs[0]);
 	if (NULL == filename)
@@ -304,10 +324,7 @@ BOOL _CreateProcessExA(HANDLE hToken, DWORD dwLogonFlags,
 	ret = TRUE;
 
 finish:
-	if (filename)
-	{
-		free(filename);
-	}
+	free(filename);
 
 	if (pArgs)
 	{
@@ -448,7 +465,7 @@ BOOL TerminateProcess(HANDLE hProcess, UINT uExitCode)
 
 	process = (WINPR_PROCESS*) hProcess;
 
-	if (!process)
+	if (!process || (process->pid <= 0))
 		return FALSE;
 
 	if (kill(process->pid, SIGTERM))
@@ -478,12 +495,24 @@ static BOOL ProcessHandleIsHandle(HANDLE handle)
 	return TRUE;
 }
 
-static void ProcessHandleInitialize(void)
+static int ProcessGetFd(HANDLE handle)
 {
-	_ProcessHandleCloseCb.IsHandled = ProcessHandleIsHandle;
-	_ProcessHandleCloseCb.CloseHandle = ProcessHandleCloseHandle;
-	RegisterHandleCloseCb(&_ProcessHandleCloseCb);
+	WINPR_PROCESS *process = (WINPR_PROCESS *)handle;
+
+	if (!ProcessHandleIsHandle(handle))
+		return -1;
+
+	/* TODO: Process does not support fd... */
+	(void)process;
+	return -1;
 }
+
+static HANDLE_OPS ops = {
+		ProcessHandleIsHandle,
+		ProcessHandleCloseHandle,
+		ProcessGetFd,
+		NULL /* CleanupHandle */
+};
 
 HANDLE CreateProcessHandle(pid_t pid)
 {
@@ -493,9 +522,9 @@ HANDLE CreateProcessHandle(pid_t pid)
 	if (!process)
 		return NULL;
 
-	pthread_once(&process_initialized, ProcessHandleInitialize);
 	process->pid = pid;
 	process->Type = HANDLE_TYPE_PROCESS;
+	process->ops = &ops;
 
 	return (HANDLE)process;
 }

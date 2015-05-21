@@ -146,9 +146,10 @@ struct _wLogAppender
 	WLOG_APPENDER_COMMON();
 };
 
-#define WLOG_CONSOLE_STDOUT	1
-#define WLOG_CONSOLE_STDERR	2
-#define WLOG_CONSOLE_DEBUG	3
+#define WLOG_CONSOLE_DEFAULT		0
+#define WLOG_CONSOLE_STDOUT		1
+#define WLOG_CONSOLE_STDERR		2
+#define WLOG_CONSOLE_DEBUG		4
 
 struct _wLogConsoleAppender
 {
@@ -233,7 +234,7 @@ WINPR_API int WLog_PrintMessageVA(wLog* log, wLogMessage* message, va_list args)
 
 #define WLog_Print(_log, _log_level, _fmt, ...) \
 	do { \
-		if (_log_level >= WLog_GetLogLevel(_log)) { \
+		if (_log && _log_level >= WLog_GetLogLevel(_log)) { \
 			wLogMessage _log_message; \
 			_log_message.Type = WLOG_MESSAGE_TEXT; \
 			_log_message.Level = _log_level; \
@@ -247,7 +248,7 @@ WINPR_API int WLog_PrintMessageVA(wLog* log, wLogMessage* message, va_list args)
 
 #define WLog_PrintVA(_log, _log_level, _fmt, _args) \
 	do { \
-		if (_log_level >= WLog_GetLogLevel(_log)) { \
+		if (_log && _log_level >= WLog_GetLogLevel(_log)) { \
 			wLogMessage _log_message; \
 			_log_message.Type = WLOG_MESSAGE_TEXT; \
 			_log_message.Level = _log_level; \
@@ -261,7 +262,7 @@ WINPR_API int WLog_PrintMessageVA(wLog* log, wLogMessage* message, va_list args)
 
 #define WLog_Data(_log, _log_level, ...) \
 	do { \
-		if (_log_level >= WLog_GetLogLevel(_log)) { \
+		if (_log && _log_level >= WLog_GetLogLevel(_log)) { \
 			wLogMessage _log_message; \
 			_log_message.Type = WLOG_MESSAGE_DATA; \
 			_log_message.Level = _log_level; \
@@ -275,7 +276,7 @@ WINPR_API int WLog_PrintMessageVA(wLog* log, wLogMessage* message, va_list args)
 
 #define WLog_Image(_log, _log_level, ...) \
 	do { \
-		if (_log_level >= WLog_GetLogLevel(_log)) { \
+		if (_log && _log_level >= WLog_GetLogLevel(_log)) { \
 			wLogMessage _log_message; \
 			_log_message.Type = WLOG_MESSAGE_IMAGE; \
 			_log_message.Level = _log_level; \
@@ -289,7 +290,7 @@ WINPR_API int WLog_PrintMessageVA(wLog* log, wLogMessage* message, va_list args)
 
 #define WLog_Packet(_log, _log_level, ...) \
 	do { \
-		if (_log_level >= WLog_GetLogLevel(_log)) { \
+		if (_log && _log_level >= WLog_GetLogLevel(_log)) { \
 			wLogMessage _log_message; \
 			_log_message.Type = WLOG_MESSAGE_PACKET; \
 			_log_message.Level = _log_level; \
@@ -302,7 +303,7 @@ WINPR_API int WLog_PrintMessageVA(wLog* log, wLogMessage* message, va_list args)
 	} while (0)
 
 #define WLog_IsLevelActive(_log, _log_level) \
-	(_log_level >= WLog_GetLogLevel(_log))
+	(_log ? _log_level >= WLog_GetLogLevel(_log) : FALSE)
 
 #define WLog_LVL(tag, lvl, fmt, ...) WLog_Print(WLog_Get(tag), lvl, fmt, ## __VA_ARGS__)
 #define WLog_VRB(tag, fmt, ...) WLog_Print(WLog_Get(tag), WLOG_TRACE, fmt, ## __VA_ARGS__)

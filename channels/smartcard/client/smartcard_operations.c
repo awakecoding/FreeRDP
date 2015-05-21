@@ -215,6 +215,7 @@ static UINT32 smartcard_EstablishContext_Call(SMARTCARD_DEVICE* smartcard, SMART
 	{
 		SMARTCARD_CONTEXT* pContext;
 		void* key = (void*)(size_t) hContext;
+		// TODO: handle return values
 		pContext = smartcard_context_new(smartcard, hContext);
 		ListDictionary_Add(smartcard->rgSCardContextList, key, (void*) pContext);
 	}
@@ -443,9 +444,7 @@ static UINT32 smartcard_GetStatusChangeA_Call(SMARTCARD_DEVICE* smartcard, SMART
 		for (index = 0; index < call->cReaders; index++)
 		{
 			rgReaderState = &call->rgReaderStates[index];
-
-			if (rgReaderState->szReader)
-				free((void*) rgReaderState->szReader);
+			free((void *)rgReaderState->szReader);
 		}
 
 		free(call->rgReaderStates);
@@ -508,9 +507,7 @@ static UINT32 smartcard_GetStatusChangeW_Call(SMARTCARD_DEVICE* smartcard, SMART
 		for (index = 0; index < call->cReaders; index++)
 		{
 			rgReaderState = &call->rgReaderStates[index];
-
-			if (rgReaderState->szReader)
-				free((void*) rgReaderState->szReader);
+			free((void *)rgReaderState->szReader);
 		}
 
 		free(call->rgReaderStates);
@@ -585,8 +582,7 @@ static UINT32 smartcard_ConnectA_Call(SMARTCARD_DEVICE* smartcard, SMARTCARD_OPE
 	if (status)
 		return status;
 
-	if (call->szReader)
-		free(call->szReader);
+	free(call->szReader);
 
 	return ret.ReturnCode;
 }
@@ -634,8 +630,7 @@ static UINT32 smartcard_ConnectW_Call(SMARTCARD_DEVICE* smartcard, SMARTCARD_OPE
 	if (status)
 		return status;
 
-	if (call->szReader)
-		free(call->szReader);
+	free(call->szReader);
 
 	return ret.ReturnCode;
 }
@@ -913,25 +908,20 @@ static UINT32 smartcard_Transmit_Call(SMARTCARD_DEVICE* smartcard, SMARTCARD_OPE
 	}
 
 	ret.pioRecvPci = call->pioRecvPci;
+
 	status = ret.ReturnCode = SCardTransmit(operation->hCard, call->pioSendPci, call->pbSendBuffer,
 				call->cbSendLength, ret.pioRecvPci, ret.pbRecvBuffer, &(ret.cbRecvLength));
+
 	smartcard_trace_transmit_return(smartcard, &ret);
 	status = smartcard_pack_transmit_return(smartcard, irp->output, &ret);
 
 	if (status != SCARD_S_SUCCESS)
 		return status;
 
-	if (call->pbSendBuffer)
-		free(call->pbSendBuffer);
-
-	if (ret.pbRecvBuffer)
-		free(ret.pbRecvBuffer);
-
-	if (call->pioSendPci)
-		free(call->pioSendPci);
-
-	if (call->pioRecvPci)
-		free(call->pioRecvPci);
+	free(call->pbSendBuffer);
+	free(ret.pbRecvBuffer);
+	free(call->pioSendPci);
+	free(call->pioRecvPci);
 
 	return ret.ReturnCode;
 }
@@ -972,11 +962,8 @@ static UINT32 smartcard_Control_Call(SMARTCARD_DEVICE* smartcard, SMARTCARD_OPER
 	if (status != SCARD_S_SUCCESS)
 		return status;
 
-	if (call->pvInBuffer)
-		free(call->pvInBuffer);
-
-	if (ret.pvOutBuffer)
-		free(ret.pvOutBuffer);
+	free(call->pvInBuffer);
+	free(ret.pvOutBuffer);
 
 	return ret.ReturnCode;
 }

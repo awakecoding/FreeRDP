@@ -93,9 +93,6 @@
 #include "../log.h"
 #define TAG WINPR_TAG("thread")
 
-static pthread_once_t thread_initialized = PTHREAD_ONCE_INIT;
-
-static HANDLE_CLOSE_CB _ThreadHandleCloseCb;
 static wListDictionary* thread_list = NULL;
 
 static BOOL ThreadCloseHandle(HANDLE handle);
@@ -105,7 +102,7 @@ static BOOL ThreadIsHandled(HANDLE handle)
 {
 	WINPR_THREAD* pThread = (WINPR_THREAD*) handle;
 
-	if (!pThread || pThread->Type != HANDLE_TYPE_THREAD)
+	if (!pThread || (pThread->Type != HANDLE_TYPE_THREAD))
 	{
 		SetLastError(ERROR_INVALID_HANDLE);
 		return FALSE;
@@ -114,12 +111,53 @@ static BOOL ThreadIsHandled(HANDLE handle)
 	return TRUE;
 }
 
-static void ThreadInitialize(void)
+static int ThreadGetFd(HANDLE handle)
 {
-	_ThreadHandleCloseCb.IsHandled = ThreadIsHandled;
-	_ThreadHandleCloseCb.CloseHandle = ThreadCloseHandle;
-	RegisterHandleCloseCb(&_ThreadHandleCloseCb);
+	WINPR_THREAD* pThread = (WINPR_THREAD*) handle;
+
+	if (!ThreadIsHandled(handle))
+		return -1;
+
+	return pThread->pipe_fd[0];
 }
+
+static DWORD ThreadCleanupHandle(HANDLE handle)
+{
+	WINPR_THREAD* thread = (WINPR_THREAD*) handle;
+
+	if (!ThreadIsHandled(handle))
+		return WAIT_FAILED;
+
+	pthread_mutex_lock(&thread->mutex);
+
+	if (!thread->joined)
+	{
+		int status;
+		status = pthread_join(thread->thread, NULL);
+
+		if (status != 0)
+		{
+			WLog_ERR(TAG, "pthread_join failure: [%d] %s",
+					status, strerror(status));
+			pthread_mutex_unlock(&thread->mutex);
+			return WAIT_FAILED;
+		}
+		else
+			thread->joined = TRUE;
+	}
+
+	pthread_mutex_unlock(&thread->mutex);
+
+	return WAIT_OBJECT_0;
+}
+
+static HANDLE_OPS ops = {
+		ThreadIsHandled,
+		ThreadCloseHandle,
+		ThreadGetFd,
+		ThreadCleanupHandle
+};
+
 
 static void dump_thread(WINPR_THREAD* thread)
 {
@@ -276,7 +314,7 @@ exit:
 	return rc;
 }
 
-static void winpr_StartThread(WINPR_THREAD *thread)
+static BOOL winpr_StartThread(WINPR_THREAD *thread)
 {
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
@@ -288,10 +326,17 @@ static void winpr_StartThread(WINPR_THREAD *thread)
 	thread->started = TRUE;
 	reset_event(thread);
 
-	pthread_create(&thread->thread, &attr, thread_launcher, thread);
-	ListDictionary_Add(thread_list, &thread->thread, thread);
+	if (pthread_create(&thread->thread, &attr, thread_launcher, thread))
+		goto error;
+	if (!ListDictionary_Add(thread_list, &thread->thread, thread))
+		goto error;
 	pthread_attr_destroy(&attr);
 	dump_thread(thread);
+	return TRUE;
+
+error:
+	pthread_attr_destroy(&attr);
+	return FALSE;
 }
 
 HANDLE CreateThread(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_T dwStackSize,
@@ -305,32 +350,32 @@ HANDLE CreateThread(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_T dwStackSize
 	if (!thread)
 		return NULL;
 
-	pthread_once(&thread_initialized, ThreadInitialize);
 	thread->dwStackSize = dwStackSize;
 	thread->lpParameter = lpParameter;
 	thread->lpStartAddress = lpStartAddress;
 	thread->lpThreadAttributes = lpThreadAttributes;
+	thread->ops = &ops;
 
 #if defined(WITH_DEBUG_THREADS)
 	thread->create_stack = winpr_backtrace(20);
 	dump_thread(thread);
 #endif
+	thread->pipe_fd[0] = -1;
+	thread->pipe_fd[1] = -1;
 	
 #ifdef HAVE_EVENTFD_H
 	thread->pipe_fd[0] = eventfd(0, EFD_NONBLOCK);
 
 	if (thread->pipe_fd[0] < 0)
 	{
-		WLog_ERR(TAG, "failed to create thread");
-		free(thread);
-		return NULL;
+		WLog_ERR(TAG, "failed to create thread pipe fd 0");
+		goto error_pipefd0;
 	}
 #else
 	if (pipe(thread->pipe_fd) < 0)
 	{
-		WLog_ERR(TAG, "failed to create thread");
-		free(thread);
-		return NULL;
+		WLog_ERR(TAG, "failed to create thread pipe");
+		goto error_pipefd0;
 	}
 	
 	{
@@ -339,22 +384,49 @@ HANDLE CreateThread(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_T dwStackSize
 	}
 #endif
 	
-	pthread_mutex_init(&thread->mutex, 0);
+	if(pthread_mutex_init(&thread->mutex, 0) != 0)
+	{
+		WLog_ERR(TAG, "failed to initialize thread mutex");
+		goto error_mutex;
+	}
+
 	WINPR_HANDLE_SET_TYPE(thread, HANDLE_TYPE_THREAD);
 	handle = (HANDLE) thread;
 
 	if (!thread_list)
 	{
 		thread_list = ListDictionary_New(TRUE);
+		if (!thread_list)
+		{
+			WLog_ERR(TAG, "Couldn't create global thread list");
+			goto error_thread_list;
+		}
 		thread_list->objectKey.fnObjectEquals = thread_compare;
 	}
 
 	if (!(dwCreationFlags & CREATE_SUSPENDED))
-		winpr_StartThread(thread);
+	{
+		if (!winpr_StartThread(thread))
+			goto error_thread_list;
+	}
 	else
-		set_event(thread);
+	{
+		if (!set_event(thread))
+			goto error_thread_list;
+	}
 
 	return handle;
+
+error_thread_list:
+	pthread_mutex_destroy(&thread->mutex);
+error_mutex:
+	if (thread->pipe_fd[1] >= 0)
+		close(thread->pipe_fd[1]);
+	if (thread->pipe_fd[0] >= 0)
+		close(thread->pipe_fd[0]);
+error_pipefd0:
+	free(thread);
+	return NULL;
 }
 
 void cleanup_handle(void *obj)
@@ -526,6 +598,10 @@ DWORD GetCurrentThreadId(VOID)
 {
 	pthread_t tid;
 	tid = pthread_self();
+
+	/* Since pthread_t can be 64-bits on some systems, take just the    */
+	/* lower 32-bits of it for the thread ID returned by this function. */
+	tid = (long)tid & 0xffffffff;
 	return (DWORD) tid;
 }
 
@@ -580,6 +656,7 @@ BOOL TerminateThread(HANDLE hThread, DWORD dwExitCode)
 	WLog_ERR(TAG, "Function not supported on this platform!");
 #endif
 	pthread_mutex_unlock(&thread->mutex);
+	set_event(thread);
 	return TRUE;
 }
 
@@ -641,8 +718,7 @@ VOID DumpThreadHandles(void)
 			}
 		}
 
-		if (keys)
-			free(keys);
+		free(keys);
 
 		ListDictionary_Unlock(thread_list);
 	}

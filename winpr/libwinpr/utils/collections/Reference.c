@@ -70,18 +70,24 @@ wReference* ReferenceTable_GetFreeEntry(wReferenceTable* referenceTable)
 
 	if (!found)
 	{
+		UINT32 new_size;
+		wReference *new_ref;
+
 		if (!referenceTable->size)
 		{
-			if (referenceTable->array)
-				free(referenceTable->array);
+			free(referenceTable->array);
 			referenceTable->array = NULL;
 			return NULL;
 		}
 
-		referenceTable->size *= 2;
-		referenceTable->array = (wReference*) realloc(referenceTable->array,
-				sizeof(wReference) * referenceTable->size);
+		new_size = referenceTable->size * 2;
+		new_ref = (wReference*) realloc(referenceTable->array,
+				sizeof(wReference) * new_size);
+		if (!new_ref)
+			return NULL;
 
+		referenceTable->size = new_size;
+		referenceTable->array = new_ref;
 		ZeroMemory(&referenceTable->array[(referenceTable->size / 2)],
 				sizeof(wReference) * (referenceTable->size / 2));
 
@@ -155,12 +161,16 @@ wReferenceTable* ReferenceTable_New(BOOL synchronized, void* context, REFERENCE_
 
 	if (referenceTable)
 	{
+		referenceTable->array = (wReference*) calloc(1, sizeof(wReference) * referenceTable->size);
+		if (!referenceTable->array)
+		{
+			free(referenceTable);
+			return NULL;
+		}
 		referenceTable->context = context;
 		referenceTable->ReferenceFree = ReferenceFree;
 
 		referenceTable->size = 32;
-		referenceTable->array = (wReference*) malloc(sizeof(wReference) * referenceTable->size);
-		ZeroMemory(referenceTable->array, sizeof(wReference) * referenceTable->size);
 
 		referenceTable->synchronized = synchronized;
 		InitializeCriticalSectionAndSpinCount(&referenceTable->lock, 4000);

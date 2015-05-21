@@ -364,7 +364,11 @@ static BOOL rdpsnd_server_send_audio_pdu(RdpsndServerContext* context, UINT16 wT
 	Stream_SetPosition(s, 0);
 
 	/* Wave PDU */
-	Stream_EnsureRemainingCapacity(s, size + fill_size);
+	if (!Stream_EnsureRemainingCapacity(s, size + fill_size))
+	{
+		status = -1;
+		goto out;
+	}
 	Stream_Write_UINT32(s, 0); /* bPad */
 	Stream_Write(s, src + 4, size - 4);
 
@@ -598,17 +602,15 @@ void rdpsnd_server_context_free(RdpsndServerContext* context)
 	if (context->priv->ChannelHandle)
 		WTSVirtualChannelClose(context->priv->ChannelHandle);
 
-	if (context->priv->out_buffer)
-		free(context->priv->out_buffer);
+	free(context->priv->out_buffer);
 
 	if (context->priv->dsp_context)
 		freerdp_dsp_context_free(context->priv->dsp_context);
 
-  if (context->priv->input_stream)
-    Stream_Free(context->priv->input_stream, TRUE);
+	if (context->priv->input_stream)
+		Stream_Free(context->priv->input_stream, TRUE);
 
-	if (context->client_formats)
-		free(context->client_formats);
+	free(context->client_formats);
 
 	free(context);
 }
@@ -662,7 +664,8 @@ int rdpsnd_server_handle_messages(RdpsndServerContext *context)
 		Stream_SetPosition(s, 0);
 		if (priv->expectedBytes)
 		{
-			Stream_EnsureCapacity(s, priv->expectedBytes);
+			if (!Stream_EnsureCapacity(s, priv->expectedBytes))
+				return 0;
 			return 1;
 		}
 	}

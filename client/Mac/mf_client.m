@@ -30,9 +30,10 @@
  * Client Interface
  */
 
-void mfreerdp_client_global_init()
+BOOL mfreerdp_client_global_init()
 {
 	freerdp_handle_signals();
+	return TRUE;
 }
 
 void mfreerdp_client_global_uninit()
@@ -53,9 +54,7 @@ int mfreerdp_client_start(rdpContext* context)
 	}
 
 	view = (MRDPView*) mfc->view;
-	[view rdpStart:context];
-
-	return 0;
+	return [view rdpStart:context];
 }
 
 int mfreerdp_client_stop(rdpContext* context)
@@ -81,7 +80,7 @@ int mfreerdp_client_stop(rdpContext* context)
 	return 0;
 }
 
-int mfreerdp_client_new(freerdp* instance, rdpContext* context)
+BOOL mfreerdp_client_new(freerdp* instance, rdpContext* context)
 {
 	mfContext* mfc;
 	rdpSettings* settings;
@@ -102,7 +101,7 @@ int mfreerdp_client_new(freerdp* instance, rdpContext* context)
 	settings->AsyncUpdate = TRUE;
 	settings->AsyncInput = TRUE;
 
-	return 0;
+	return TRUE;
 }
 
 void mfreerdp_client_free(freerdp* instance, rdpContext* context)

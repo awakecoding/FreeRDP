@@ -54,8 +54,7 @@ void rail_string_to_unicode_string(char* string, RAIL_UNICODE_STRING* unicode_st
 	WCHAR* buffer = NULL;
 	int length = 0;
 
-	if (unicode_string->string != NULL)
-		free(unicode_string->string);
+	free(unicode_string->string);
 
 	unicode_string->string = NULL;
 	unicode_string->length = 0;
@@ -90,6 +89,8 @@ wStream* rail_pdu_init(int length)
 {
 	wStream* s;
 	s = Stream_New(NULL, length + RAIL_PDU_HEADER_LENGTH);
+	if (!s)
+		return NULL;
 	Stream_Seek(s, RAIL_PDU_HEADER_LENGTH);
 	return s;
 }

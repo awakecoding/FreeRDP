@@ -345,8 +345,7 @@ void certificate_free_x509_certificate_chain(rdpX509CertChain* x509_cert_chain)
 
 	for (i = 0; i < (int)x509_cert_chain->count; i++)
 	{
-		if (x509_cert_chain->array[i].data)
-			free(x509_cert_chain->array[i].data);
+		free(x509_cert_chain->array[i].data);
 	}
 
 	free(x509_cert_chain->array);
@@ -591,8 +590,7 @@ BOOL certificate_read_server_x509_certificate_chain(rdpCertificate* certificate,
 			
 			DEBUG_LICENSE("modulus length:%d", (int) cert_info.ModulusLength);
 
-			if (cert_info.Modulus)
-				free(cert_info.Modulus);
+			free(cert_info.Modulus);
 
 			if (!ret)
 			{
@@ -688,6 +686,7 @@ rdpRsaKey* key_new(const char* keyfile)
 
 	fread((void*) buffer, length, 1, fp);
 	fclose(fp);
+	fp = NULL;
 
 	bio = BIO_new_mem_buf((void*) buffer, length);
 
@@ -755,8 +754,7 @@ out_free_rsa:
 out_free:
 	if (fp)
 		fclose(fp);
-	if (buffer)
-		free(buffer);
+	free(buffer);
 	free(key);
 	return NULL;
 }
@@ -766,11 +764,52 @@ void key_free(rdpRsaKey* key)
 	if (!key)
 		return;
 
-	if (key->Modulus)
-		free(key->Modulus);
-
+	free(key->Modulus);
 	free(key->PrivateExponent);
 	free(key);
+}
+
+rdpCertificate* certificate_clone(rdpCertificate* certificate)
+{
+	int index;
+	rdpCertificate* _certificate = (rdpCertificate*) calloc(1, sizeof(rdpCertificate));
+
+	if (!_certificate)
+		return NULL;
+
+	CopyMemory(_certificate, certificate, sizeof(rdpCertificate));
+
+	if (certificate->cert_info.ModulusLength)
+	{
+		_certificate->cert_info.Modulus = (BYTE*) malloc(certificate->cert_info.ModulusLength);
+		CopyMemory(_certificate->cert_info.Modulus, certificate->cert_info.Modulus, certificate->cert_info.ModulusLength);
+		_certificate->cert_info.ModulusLength = certificate->cert_info.ModulusLength;
+	}
+
+	if (certificate->x509_cert_chain)
+	{
+		_certificate->x509_cert_chain = (rdpX509CertChain*) malloc(sizeof(rdpX509CertChain));
+		CopyMemory(_certificate->x509_cert_chain, certificate->x509_cert_chain, sizeof(rdpX509CertChain));
+
+		if (certificate->x509_cert_chain->count)
+		{
+			_certificate->x509_cert_chain->array = (rdpCertBlob*) calloc(certificate->x509_cert_chain->count, sizeof(rdpCertBlob));
+
+			for (index = 0; index < certificate->x509_cert_chain->count; index++)
+			{
+				_certificate->x509_cert_chain->array[index].length = certificate->x509_cert_chain->array[index].length;
+
+				if (certificate->x509_cert_chain->array[index].length)
+				{
+					_certificate->x509_cert_chain->array[index].data = (BYTE*) malloc(certificate->x509_cert_chain->array[index].length);
+					CopyMemory(_certificate->x509_cert_chain->array[index].data, certificate->x509_cert_chain->array[index].data,
+							_certificate->x509_cert_chain->array[index].length);
+				}
+			}
+		}
+	}
+
+	return _certificate;
 }
 
 /**
@@ -796,8 +835,7 @@ void certificate_free(rdpCertificate* certificate)
 
 	certificate_free_x509_certificate_chain(certificate->x509_cert_chain);
 
-	if (certificate->cert_info.Modulus)
-		free(certificate->cert_info.Modulus);
+	free(certificate->cert_info.Modulus);
 
 	free(certificate);
 }

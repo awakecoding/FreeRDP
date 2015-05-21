@@ -71,9 +71,19 @@ static COMM_DEVICE **_CommDevices = NULL;
 static CRITICAL_SECTION _CommDevicesLock;
 
 static HANDLE_CREATOR *_CommHandleCreator = NULL;
-static HANDLE_CLOSE_CB *_CommHandleCloseCb = NULL;
 
 static pthread_once_t _CommInitialized = PTHREAD_ONCE_INIT;
+
+static int CommGetFd(HANDLE handle)
+{
+	WINPR_COMM *comm = (WINPR_COMM *)handle;
+
+	if (!CommIsHandled(handle))
+		return -1;
+
+	return comm->fd;
+}
+
 static void _CommInit()
 {
 	/* NB: error management to be done outside of this function */
@@ -81,35 +91,42 @@ static void _CommInit()
 	assert(_Log == NULL);
 	assert(_CommDevices == NULL);
 	assert(_CommHandleCreator == NULL);
-	assert(_CommHandleCloseCb == NULL);
 
-	_Log = WLog_Get("com.winpr.comm");
 
 	_CommDevices = (COMM_DEVICE**)calloc(COMM_DEVICE_MAX+1, sizeof(COMM_DEVICE*));
-	InitializeCriticalSection(&_CommDevicesLock);
+	if (!_CommDevices)
+		return;
+
+	if (!InitializeCriticalSectionEx(&_CommDevicesLock, 0, 0))
+	{
+		free(_CommDevices);
+		_CommDevices = NULL;
+		return;
+	}
 
 	_CommHandleCreator = (HANDLE_CREATOR*)malloc(sizeof(HANDLE_CREATOR));
-	if (_CommHandleCreator)
+	if (!_CommHandleCreator)
 	{
-		_CommHandleCreator->IsHandled = IsCommDevice;
-		_CommHandleCreator->CreateFileA = CommCreateFileA;
-		
-		RegisterHandleCreator(_CommHandleCreator);
+		DeleteCriticalSection(&_CommDevicesLock);
+		free(_CommDevices);
+		_CommDevices = NULL;
+		return;
 	}
 
-	_CommHandleCloseCb = (HANDLE_CLOSE_CB*)malloc(sizeof(HANDLE_CLOSE_CB));
-	if (_CommHandleCloseCb)
-	{
-		_CommHandleCloseCb->IsHandled = CommIsHandled;
-		_CommHandleCloseCb->CloseHandle = CommCloseHandle;
-		
-		RegisterHandleCloseCb(_CommHandleCloseCb);
-	}
+	_CommHandleCreator->IsHandled = IsCommDevice;
+	_CommHandleCreator->CreateFileA = CommCreateFileA;
 
+	if (!RegisterHandleCreator(_CommHandleCreator))
+	{
+		DeleteCriticalSection(&_CommDevicesLock);
+		free(_CommDevices);
+		free(_CommHandleCreator);
+		_CommDevices = NULL;
+		_CommHandleCreator = NULL;
+		return;
+	}
+	_Log = WLog_Get("com.winpr.comm");
 	assert(_Log != NULL);
-	assert(_CommDevices != NULL);
-	assert(_CommHandleCreator != NULL);
-	assert(_CommHandleCloseCb != NULL);
 }
 
 
@@ -120,6 +137,12 @@ static void _CommInit()
 static BOOL CommInitialized()
 {
 	if (pthread_once(&_CommInitialized, _CommInit) != 0)
+	{
+		SetLastError(ERROR_DLL_INIT_FAILED);
+		return FALSE;
+	}
+
+	if (_CommHandleCreator == NULL)
 	{
 		SetLastError(ERROR_DLL_INIT_FAILED);
 		return FALSE;
@@ -474,10 +497,8 @@ BOOL GetCommState(HANDLE hFile, LPDCB lpDCB)
 	free(lpLocalDcb);
 	return TRUE;
 
-
-  error_handle:
-	if (lpLocalDcb)
-		free(lpLocalDcb);
+error_handle:
+	free(lpLocalDcb);
 
 	return FALSE;
 }
@@ -1089,12 +1110,9 @@ BOOL DefineCommDevice(/* DWORD dwFlags,*/ LPCTSTR lpDeviceName, LPCTSTR lpTarget
 	return TRUE;
 
 
-  error_handle:
-	if (storedDeviceName != NULL)
-		free(storedDeviceName);
-
-	if (storedTargetPath != NULL)
-		free(storedTargetPath);
+error_handle:
+	free(storedDeviceName);
+	free(storedTargetPath);
 
 	LeaveCriticalSection(&_CommDevicesLock);
 	return FALSE;
@@ -1219,6 +1237,13 @@ void _comm_setServerSerialDriver(HANDLE hComm, SERIAL_DRIVER_ID driverId)
 	pComm->serverSerialDriverId = driverId;
 }
 
+static HANDLE_OPS ops = {
+		CommIsHandled,
+		CommCloseHandle,
+		CommGetFd,
+		NULL /* CleanupHandle */
+};
+
 
 /**
  * http://msdn.microsoft.com/en-us/library/windows/desktop/aa363198%28v=vs.85%29.aspx
@@ -1320,6 +1345,8 @@ HANDLE CommCreateFileA(LPCSTR lpDeviceName, DWORD dwDesiredAccess, DWORD dwShare
 	}
 
 	WINPR_HANDLE_SET_TYPE(pComm, HANDLE_TYPE_COMM);
+
+	pComm->ops = &ops;
 
 	/* error_handle */
 
@@ -1443,7 +1470,7 @@ BOOL CommIsHandled(HANDLE handle)
 
 	pComm = (WINPR_COMM*)handle;
 
-	if (!pComm || pComm->Type != HANDLE_TYPE_COMM)
+	if (!pComm || (pComm->Type != HANDLE_TYPE_COMM) || (pComm == INVALID_HANDLE_VALUE))
 	{
 		SetLastError(ERROR_INVALID_HANDLE);
 		return FALSE;
@@ -1451,7 +1478,6 @@ BOOL CommIsHandled(HANDLE handle)
 
 	return TRUE;
 }
-
 
 BOOL CommCloseHandle(HANDLE handle)
 {
@@ -1504,7 +1530,7 @@ BOOL CommCloseHandle(HANDLE handle)
 	return TRUE;
 }
 
-#ifdef __UCLIBC__
+#ifndef WITH_EVENTFD_READ_WRITE
 int eventfd_read(int fd, eventfd_t* value)
 {
 	return (read(fd, value, sizeof(*value)) == sizeof(*value)) ? 0 : -1;

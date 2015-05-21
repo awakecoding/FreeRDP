@@ -125,7 +125,7 @@ int ListDictionary_GetKeys(wListDictionary* listDictionary, ULONG_PTR** ppKeys)
 	ULONG_PTR* pKeys = NULL;
 	wListDictionaryItem* item;
 
-	if (!ppKeys)
+	if (!ppKeys || !listDictionary)
 		return -1;
 
 	if (listDictionary->synchronized)
@@ -145,7 +145,16 @@ int ListDictionary_GetKeys(wListDictionary* listDictionary, ULONG_PTR** ppKeys)
 	}
 
 	if (count)
-		pKeys = (ULONG_PTR*) calloc(count, sizeof(ULONG_PTR));
+	{
+		pKeys = (ULONG_PTR *) calloc(count, sizeof(ULONG_PTR));
+		if (!pKeys)
+		{
+			if (listDictionary->synchronized)
+				LeaveCriticalSection(&listDictionary->lock);
+
+			return -1;
+		}
+	}
 
 	index = 0;
 
@@ -176,14 +185,14 @@ BOOL ListDictionary_Add(wListDictionary* listDictionary, void* key, void* value)
 {
 	wListDictionaryItem* item;
 	wListDictionaryItem* lastItem;
+	BOOL ret = FALSE;
 
 	if (listDictionary->synchronized)
 		EnterCriticalSection(&listDictionary->lock);
 
 	item = (wListDictionaryItem*) malloc(sizeof(wListDictionaryItem));
-
 	if (!item)
-		return FALSE;
+		goto out_error;
 
 	item->key = key;
 	item->value = value;
@@ -204,10 +213,12 @@ BOOL ListDictionary_Add(wListDictionary* listDictionary, void* key, void* value)
 		lastItem->next = item;
 	}
 
+	ret = TRUE;
+out_error:
 	if (listDictionary->synchronized)
 		LeaveCriticalSection(&listDictionary->lock);
 
-	return TRUE;
+	return ret;
 }
 
 /**
@@ -257,7 +268,7 @@ BOOL ListDictionary_Contains(wListDictionary* listDictionary, void* key)
 	OBJECT_EQUALS_FN keyEquals;
 
 	if (listDictionary->synchronized)
-		EnterCriticalSection(&listDictionary->lock);
+		EnterCriticalSection(&(listDictionary->lock));
 
 	keyEquals = listDictionary->objectKey.fnObjectEquals;
 	item = listDictionary->head;
@@ -271,7 +282,7 @@ BOOL ListDictionary_Contains(wListDictionary* listDictionary, void* key)
 	}
 
 	if (listDictionary->synchronized)
-		LeaveCriticalSection(&listDictionary->lock);
+		LeaveCriticalSection(&(listDictionary->lock));
 
 	return (item) ? TRUE : FALSE;
 }
@@ -434,12 +445,13 @@ wListDictionary* ListDictionary_New(BOOL synchronized)
 	wListDictionary* listDictionary = NULL;
 
 	listDictionary = (wListDictionary*) calloc(1, sizeof(wListDictionary));
+
 	if (!listDictionary)
 		return NULL;
 
 	listDictionary->synchronized = synchronized;
 
-	if (!InitializeCriticalSectionAndSpinCount(&listDictionary->lock, 4000))
+	if (!InitializeCriticalSectionAndSpinCount(&(listDictionary->lock), 4000))
 	{
 		free(listDictionary);
 		return NULL;
@@ -447,6 +459,7 @@ wListDictionary* ListDictionary_New(BOOL synchronized)
 
 	listDictionary->objectKey.fnObjectEquals = default_equal_function;
 	listDictionary->objectValue.fnObjectEquals = default_equal_function;
+
 	return listDictionary;
 }
 

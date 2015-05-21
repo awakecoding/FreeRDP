@@ -3,6 +3,8 @@
  * Windows Terminal Services API
  *
  * Copyright 2013 Marc-Andre Moreau <marcandre.moreau@gmail.com>
+ * Copyright 2015 DI (FH) Martin Haimberger <martin.haimberger@thincast.com>
+ * Copyright 2015 Copyright 2015 Thincast Technologies GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,7 +83,7 @@ typedef struct tagCHANNEL_PDU_HEADER
 	UINT32 flags;
 } CHANNEL_PDU_HEADER, *PCHANNEL_PDU_HEADER;
 
-#endif
+#endif /* _WIN32 */
 
 /**
  * These channel flags are defined in some versions of pchannel.h only
@@ -951,6 +953,10 @@ typedef struct _WTSLISTENERCONFIGA
 #define PWTSLISTENERCONFIG		PWTSLISTENERCONFIGA
 #endif
 
+#define REMOTECONTROL_FLAG_DISABLE_KEYBOARD   0x00000001
+#define REMOTECONTROL_FLAG_DISABLE_MOUSE      0x00000002
+#define REMOTECONTROL_FLAG_DISABLE_INPUT      REMOTECONTROL_FLAG_DISABLE_KEYBOARD | REMOTECONTROL_FLAG_DISABLE_MOUSE
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -959,6 +965,9 @@ WINPR_API BOOL WINAPI WTSStopRemoteControlSession(ULONG LogonId);
 
 WINPR_API BOOL WINAPI WTSStartRemoteControlSessionW(LPWSTR pTargetServerName, ULONG TargetLogonId, BYTE HotkeyVk, USHORT HotkeyModifiers);
 WINPR_API BOOL WINAPI WTSStartRemoteControlSessionA(LPSTR pTargetServerName, ULONG TargetLogonId, BYTE HotkeyVk, USHORT HotkeyModifiers);
+
+WINPR_API BOOL WINAPI WTSStartRemoteControlSessionExW(LPWSTR pTargetServerName, ULONG TargetLogonId, BYTE HotkeyVk, USHORT HotkeyModifiers, DWORD flags);
+WINPR_API BOOL WINAPI WTSStartRemoteControlSessionExA(LPSTR pTargetServerName, ULONG TargetLogonId, BYTE HotkeyVk, USHORT HotkeyModifiers, DWORD flags);
 
 WINPR_API BOOL WINAPI WTSConnectSessionW(ULONG LogonId, ULONG TargetLogonId, PWSTR pPassword, BOOL bWait);
 WINPR_API BOOL WINAPI WTSConnectSessionA(ULONG LogonId, ULONG TargetLogonId, PSTR pPassword, BOOL bWait);
@@ -1078,12 +1087,19 @@ WINPR_API BOOL CDECL WTSIsChildSessionsEnabled(PBOOL pbEnabled);
 
 WINPR_API BOOL CDECL WTSGetChildSessionId(PULONG pSessionId);
 
+WINPR_API BOOL CDECL WTSLogonUser(HANDLE hServer, LPCSTR username,
+		LPCSTR password, LPCSTR domain);
+
+WINPR_API BOOL CDECL WTSLogoffUser(HANDLE hServer);
+
+
 #ifdef __cplusplus
 }
 #endif
 
 #ifdef UNICODE
 #define WTSStartRemoteControlSession	WTSStartRemoteControlSessionW
+#define WTSStartRemoteControlSessionEx	WTSStartRemoteControlSessionExW
 #define WTSConnectSession		WTSConnectSessionW
 #define WTSEnumerateServers		WTSEnumerateServersW
 #define WTSOpenServer			WTSOpenServerW
@@ -1104,6 +1120,7 @@ WINPR_API BOOL CDECL WTSGetChildSessionId(PULONG pSessionId);
 #define WTSGetListenerSecurity		WTSGetListenerSecurityW
 #else
 #define WTSStartRemoteControlSession	WTSStartRemoteControlSessionA
+#define WTSStartRemoteControlSessionEx	WTSStartRemoteControlSessionExA
 #define WTSConnectSession		WTSConnectSessionA
 #define WTSEnumerateServers		WTSEnumerateServersA
 #define WTSOpenServer			WTSOpenServerA
@@ -1143,6 +1160,11 @@ typedef BOOL (WINAPI * WTS_START_REMOTE_CONTROL_SESSION_FN_W)(LPWSTR pTargetServ
 		ULONG TargetLogonId, BYTE HotkeyVk, USHORT HotkeyModifiers);
 typedef BOOL (WINAPI * WTS_START_REMOTE_CONTROL_SESSION_FN_A)(LPSTR pTargetServerName,
 		ULONG TargetLogonId, BYTE HotkeyVk, USHORT HotkeyModifiers);
+
+typedef BOOL (WINAPI * WTS_START_REMOTE_CONTROL_SESSION_EX_FN_W)(LPWSTR pTargetServerName,
+		ULONG TargetLogonId, BYTE HotkeyVk, USHORT HotkeyModifiers, DWORD flags);
+typedef BOOL (WINAPI * WTS_START_REMOTE_CONTROL_SESSION_EX_FN_A)(LPSTR pTargetServerName,
+		ULONG TargetLogonId, BYTE HotkeyVk, USHORT HotkeyModifiers, DWORD flags);
 
 typedef BOOL (WINAPI * WTS_CONNECT_SESSION_FN_W)(ULONG LogonId, ULONG TargetLogonId, PWSTR pPassword, BOOL bWait);
 typedef BOOL (WINAPI * WTS_CONNECT_SESSION_FN_A)(ULONG LogonId, ULONG TargetLogonId, PSTR pPassword, BOOL bWait);
@@ -1278,6 +1300,11 @@ typedef BOOL (CDECL * WTS_GET_CHILD_SESSION_ID_FN)(PULONG pSessionId);
 
 typedef DWORD (WINAPI * WTS_GET_ACTIVE_CONSOLE_SESSION_ID_FN)(void);
 
+typedef BOOL (WINAPI * WTS_LOGON_USER_FN)(HANDLE hServer, LPCSTR username,
+		LPCSTR password, LPCSTR domain);
+
+typedef BOOL (WINAPI * WTS_LOGOFF_USER_FN)(HANDLE hServer);
+
 struct _WtsApiFunctionTable
 {
 	DWORD dwVersion;
@@ -1346,6 +1373,10 @@ struct _WtsApiFunctionTable
 	WTS_IS_CHILD_SESSIONS_ENABLED_FN pIsChildSessionsEnabled;
 	WTS_GET_CHILD_SESSION_ID_FN pGetChildSessionId;
 	WTS_GET_ACTIVE_CONSOLE_SESSION_ID_FN pGetActiveConsoleSessionId;
+	WTS_LOGON_USER_FN pLogonUser;
+	WTS_LOGOFF_USER_FN pLogoffUser;
+	WTS_START_REMOTE_CONTROL_SESSION_EX_FN_W pStartRemoteControlSessionExW;
+	WTS_START_REMOTE_CONTROL_SESSION_EX_FN_A pStartRemoteControlSessionExA;
 };
 typedef struct _WtsApiFunctionTable WtsApiFunctionTable;
 typedef WtsApiFunctionTable* PWtsApiFunctionTable;

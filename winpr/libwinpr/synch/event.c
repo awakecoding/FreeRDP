@@ -48,51 +48,111 @@
 
 CRITICAL_SECTION cs = { NULL, 0, 0, NULL, NULL, 0 };
 
+static BOOL EventCloseHandle(HANDLE handle);
+
+static BOOL EventIsHandled(HANDLE handle)
+{
+	WINPR_TIMER* pEvent = (WINPR_TIMER*) handle;
+
+	if (!pEvent || (pEvent->Type != HANDLE_TYPE_EVENT))
+	{
+		SetLastError(ERROR_INVALID_HANDLE);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static int EventGetFd(HANDLE handle) {
+	WINPR_EVENT *event = (WINPR_EVENT *)handle;
+	if (!EventIsHandled(handle))
+		return -1;
+
+	return event->pipe_fd[0];
+}
+
+BOOL EventCloseHandle(HANDLE handle) {
+	WINPR_EVENT* event = (WINPR_EVENT*) handle;
+
+	if (!EventIsHandled(handle))
+		return FALSE;
+
+    if (!event->bAttached)
+    {
+        if (event->pipe_fd[0] != -1)
+        {
+        	close(event->pipe_fd[0]);
+        	event->pipe_fd[0] = -1;
+        }
+
+        if (event->pipe_fd[1] != -1)
+        {
+        	close(event->pipe_fd[1]);
+        	event->pipe_fd[1] = -1;
+        }
+    }
+
+    free(event);
+    return TRUE;
+}
+
+static HANDLE_OPS ops = {
+		EventIsHandled,
+		EventCloseHandle,
+		EventGetFd,
+		NULL /* CleanupHandle */
+};
+
 HANDLE CreateEventW(LPSECURITY_ATTRIBUTES lpEventAttributes, BOOL bManualReset, BOOL bInitialState, LPCWSTR lpName)
 {
 	WINPR_EVENT* event;
+
 	event = (WINPR_EVENT*) calloc(1, sizeof(WINPR_EVENT));
+	if (!event)
+		return NULL;
+	event->bAttached = FALSE;
+	event->bManualReset = bManualReset;
+	event->ops = &ops;
+	WINPR_HANDLE_SET_TYPE(event, HANDLE_TYPE_EVENT);
 
-	if (event)
+	if (!event->bManualReset)
 	{
-		event->bAttached = FALSE;
-		event->bManualReset = bManualReset;
-
-		if (!event->bManualReset)
-		{
-			WLog_ERR(TAG, "auto-reset events not yet implemented");
-		}
-
-		event->pipe_fd[0] = -1;
-		event->pipe_fd[1] = -1;
-#ifdef HAVE_EVENTFD_H
-		event->pipe_fd[0] = eventfd(0, EFD_NONBLOCK);
-
-		if (event->pipe_fd[0] < 0)
-		{
-			WLog_ERR(TAG, "failed to create event");
-			free(event);
-			return NULL;
-		}
-
-#else
-
-		if (pipe(event->pipe_fd) < 0)
-		{
-			WLog_ERR(TAG, "failed to create event");
-			free(event);
-			return NULL;
-		}
-
-#endif
-		WINPR_HANDLE_SET_TYPE(event, HANDLE_TYPE_EVENT);
-
-		if (bInitialState)
-			SetEvent(event);
+		WLog_ERR(TAG, "auto-reset events not yet implemented");
 	}
 
-	if (!cs.LockSemaphore)
-		InitializeCriticalSection(&cs);
+	event->pipe_fd[0] = -1;
+	event->pipe_fd[1] = -1;
+#ifdef HAVE_EVENTFD_H
+	event->pipe_fd[0] = eventfd(0, EFD_NONBLOCK);
+
+	if (event->pipe_fd[0] < 0)
+	{
+		WLog_ERR(TAG, "failed to create event");
+		free(event);
+		return NULL;
+	}
+
+#else
+	if (pipe(event->pipe_fd) < 0)
+	{
+		WLog_ERR(TAG, "failed to create event");
+		free(event);
+		return NULL;
+	}
+#endif
+
+	if (bInitialState)
+		SetEvent(event);
+
+	if (!cs.LockSemaphore && !InitializeCriticalSectionEx(&cs, 0, 0))
+	{
+		if (event->pipe_fd[0] != -1)
+			close(event->pipe_fd[0]);
+		if (event->pipe_fd[1] != -1)
+			close(event->pipe_fd[1]);
+		free(event);
+		return NULL;
+	}
 
 	return (HANDLE)event;
 }
@@ -123,7 +183,7 @@ HANDLE OpenEventA(DWORD dwDesiredAccess, BOOL bInheritHandle, LPCSTR lpName)
 }
 
 #ifdef HAVE_EVENTFD_H
-#if defined(__UCLIBC__)
+#if !defined(WITH_EVENTFD_READ_WRITE)
 static int eventfd_read(int fd, eventfd_t* value)
 {
 	return (read(fd, value, sizeof(*value)) == sizeof(*value)) ? 0 : -1;
@@ -220,12 +280,13 @@ BOOL ResetEvent(HANDLE hEvent)
 
 #endif
 
+
 HANDLE CreateFileDescriptorEventW(LPSECURITY_ATTRIBUTES lpEventAttributes, BOOL bManualReset, BOOL bInitialState, int FileDescriptor)
 {
 #ifndef _WIN32
 	WINPR_EVENT* event;
 	HANDLE handle = NULL;
-	event = (WINPR_EVENT*) malloc(sizeof(WINPR_EVENT));
+	event = (WINPR_EVENT*) calloc(1, sizeof(WINPR_EVENT));
 
 	if (event)
 	{
@@ -233,6 +294,7 @@ HANDLE CreateFileDescriptorEventW(LPSECURITY_ATTRIBUTES lpEventAttributes, BOOL 
 		event->bManualReset = bManualReset;
 		event->pipe_fd[0] = FileDescriptor;
 		event->pipe_fd[1] = -1;
+		event->ops = &ops;
 		WINPR_HANDLE_SET_TYPE(event, HANDLE_TYPE_EVENT);
 		handle = (HANDLE) event;
 	}

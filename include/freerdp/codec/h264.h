@@ -30,6 +30,7 @@ typedef BOOL (*pfnH264SubsystemInit)(H264_CONTEXT* h264);
 typedef void (*pfnH264SubsystemUninit)(H264_CONTEXT* h264);
 
 typedef int (*pfnH264SubsystemDecompress)(H264_CONTEXT* h264, BYTE* pSrcData, UINT32 SrcSize);
+typedef int (*pfnH264SubsystemCompress)(H264_CONTEXT* h264, BYTE** ppDstData, UINT32* pDstSize);
 
 struct _H264_CONTEXT_SUBSYSTEM
 {
@@ -37,6 +38,7 @@ struct _H264_CONTEXT_SUBSYSTEM
 	pfnH264SubsystemInit Init;
 	pfnH264SubsystemUninit Uninit;
 	pfnH264SubsystemDecompress Decompress;
+	pfnH264SubsystemCompress Compress;
 };
 typedef struct _H264_CONTEXT_SUBSYSTEM H264_CONTEXT_SUBSYSTEM;
 
@@ -46,6 +48,10 @@ struct _H264_CONTEXT
 
 	UINT32 width;
 	UINT32 height;
+
+	UINT32 BitRate;
+	FLOAT FrameRate;
+	UINT32 NumberOfThreads;
 	
 	int iStride[3];
 	BYTE* pYUVData[3];
@@ -58,10 +64,12 @@ struct _H264_CONTEXT
 extern "C" {
 #endif
 
-FREERDP_API int h264_compress(H264_CONTEXT* h264, BYTE* pSrcData, UINT32 SrcSize, BYTE** ppDstData, UINT32* pDstSize);
+FREERDP_API int h264_compress(H264_CONTEXT* h264, BYTE* pSrcData, DWORD SrcFormat,
+		int nSrcStep, int nSrcWidth, int nSrcHeight, BYTE** ppDstData, UINT32* pDstSize);
 
 FREERDP_API int h264_decompress(H264_CONTEXT* h264, BYTE* pSrcData, UINT32 SrcSize,
-		BYTE** ppDstData, DWORD DstFormat, int nDstStep, int nDstHeight, RDPGFX_RECT16* regionRects, int numRegionRect);
+		BYTE** ppDstData, DWORD DstFormat, int nDstStep, int nDstWidth, int nDstHeight,
+		RDPGFX_RECT16* regionRects, int numRegionRect);
 
 FREERDP_API int h264_context_reset(H264_CONTEXT* h264);
 

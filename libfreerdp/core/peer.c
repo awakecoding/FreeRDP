@@ -62,7 +62,7 @@ static HANDLE freerdp_peer_virtual_channel_open(freerdp_peer* client, const char
 		if (!mcsChannel->joined)
 			continue;
 
-		if (strncmp(name, mcsChannel->Name, length) == 0)
+		if (_strnicmp(name, mcsChannel->Name, length) == 0)
 		{
 			joined = TRUE;
 			break;
@@ -145,6 +145,8 @@ static int freerdp_peer_virtual_channel_write(freerdp_peer* client, HANDLE hChan
 	while (length > 0)
 	{
 		s = rdp_send_stream_init(rdp);
+		if (!s)
+			return -1;
 
 		if (length > maxChunkSize)
 		{
@@ -161,10 +163,18 @@ static int freerdp_peer_virtual_channel_write(freerdp_peer* client, HANDLE hChan
 
 		Stream_Write_UINT32(s, totalLength);
 		Stream_Write_UINT32(s, flags);
-		Stream_EnsureRemainingCapacity(s, chunkSize);
+		if (!Stream_EnsureRemainingCapacity(s, chunkSize))
+		{
+			Stream_Release(s);
+			return -1;
+		}
 		Stream_Write(s, buffer, chunkSize);
 
-		rdp_send(rdp, s, peerChannel->channelId);
+		if (!rdp_send(rdp, s, peerChannel->channelId))
+		{
+			Stream_Release(s);
+			return -1;
+		}
 
 		buffer += chunkSize;
 		length -= chunkSize;
@@ -215,13 +225,6 @@ static BOOL freerdp_peer_initialize(freerdp_peer* client)
 			WLog_ERR(TAG, "inavlid RDP key file %s", settings->RdpKeyFile);
 			return FALSE;
 		}
-
-		if (settings->RdpServerRsaKey->ModulusLength > 256)
-		{
-			WLog_ERR(TAG, "Key sizes > 2048 are currently not supported for RDP security.");
-			WLog_ERR(TAG, "Set a different key file than %s", settings->RdpKeyFile);
-			exit(1);
-		}
 	}
 
 	return TRUE;
@@ -229,7 +232,9 @@ static BOOL freerdp_peer_initialize(freerdp_peer* client)
 
 static BOOL freerdp_peer_get_fds(freerdp_peer* client, void** rfds, int* rcount)
 {
-	rfds[*rcount] = (void*)(long)(client->context->rdp->transport->TcpIn->sockfd);
+	rdpTransport* transport = client->context->rdp->transport;
+
+	rfds[*rcount] = (void*)(long)(BIO_get_fd(transport->frontBio, NULL));
 	(*rcount)++;
 
 	return TRUE;
@@ -237,7 +242,12 @@ static BOOL freerdp_peer_get_fds(freerdp_peer* client, void** rfds, int* rcount)
 
 static HANDLE freerdp_peer_get_event_handle(freerdp_peer* client)
 {
-	return client->context->rdp->transport->TcpIn->event;
+	HANDLE hEvent = NULL;
+	rdpTransport* transport = client->context->rdp->transport;
+
+	BIO_get_event(transport->frontBio, &hEvent);
+
+	return hEvent;
 }
 
 static BOOL freerdp_peer_check_fds(freerdp_peer* peer)
@@ -451,12 +461,12 @@ static int peer_recv_callback(rdpTransport* transport, wStream* s, void* extra)
 			if (!rdp_server_accept_nego(rdp, s))
 				return -1;
 
-			if (rdp->nego->selected_protocol & PROTOCOL_NLA)
+			if (rdp->nego->SelectedProtocol & PROTOCOL_NLA)
 			{
-				sspi_CopyAuthIdentity(&client->identity, &(rdp->nego->transport->credssp->identity));
+				sspi_CopyAuthIdentity(&client->identity, &(rdp->nego->transport->nla->identity));
 				IFCALLRET(client->Logon, client->authenticated, client, &client->identity, TRUE);
-				credssp_free(rdp->nego->transport->credssp);
-				rdp->nego->transport->credssp = NULL;
+				nla_free(rdp->nego->transport->nla);
+				rdp->nego->transport->nla = NULL;
 			}
 			else
 			{
@@ -567,6 +577,12 @@ static int peer_recv_callback(rdpTransport* transport, wStream* s, void* extra)
 
 static BOOL freerdp_peer_close(freerdp_peer* client)
 {
+	/** if negotiation has failed, we're not MCS connected. So don't
+	 * 	send anything else, or some mstsc will consider that as an error
+	 */
+	if (client->context->rdp->nego->SelectedProtocol & PROTOCOL_FAILED_NEGO)
+		return TRUE;
+
 	/**
 	 * [MS-RDPBCGR] 1.3.1.4.2 User-Initiated Disconnection Sequence on Server
 	 * The server first sends the client a Deactivate All PDU followed by an
@@ -584,7 +600,8 @@ static BOOL freerdp_peer_close(freerdp_peer* client)
 
 static void freerdp_peer_disconnect(freerdp_peer* client)
 {
-	transport_disconnect(client->context->rdp->transport);
+	rdpTransport* transport = client->context->rdp->transport;
+	transport_disconnect(transport);
 }
 
 static int freerdp_peer_send_channel_data(freerdp_peer* client, UINT16 channelId, BYTE* data, int size)
@@ -594,48 +611,59 @@ static int freerdp_peer_send_channel_data(freerdp_peer* client, UINT16 channelId
 
 static BOOL freerdp_peer_is_write_blocked(freerdp_peer* peer)
 {
-	return tranport_is_write_blocked(peer->context->rdp->transport);
+	rdpTransport* transport = peer->context->rdp->transport;
+	return transport_is_write_blocked(transport);
 }
 
 static int freerdp_peer_drain_output_buffer(freerdp_peer* peer)
 {
 	rdpTransport* transport = peer->context->rdp->transport;
-
-	return tranport_drain_output_buffer(transport);
+	return transport_drain_output_buffer(transport);
 }
 
-void freerdp_peer_context_new(freerdp_peer* client)
+BOOL freerdp_peer_context_new(freerdp_peer* client)
 {
 	rdpRdp* rdp;
+	rdpContext* context;
+	BOOL ret = TRUE;
 
-	client->context = (rdpContext*) calloc(1, client->ContextSize);
+	if (!client)
+		return FALSE;
 
-	client->context->ServerMode = TRUE;
+	if (!(context = (rdpContext*) calloc(1, client->ContextSize)))
+		goto fail_context;
 
-	client->context->metrics = metrics_new(client->context);
+	client->context = context;
 
-	rdp = rdp_new(client->context);
+	context->ServerMode = TRUE;
+
+	if (!(context->metrics = metrics_new(context)))
+		goto fail_metrics;
+
+	if (!(rdp = rdp_new(context)))
+		goto fail_rdp;
 
 	client->input = rdp->input;
 	client->update = rdp->update;
 	client->settings = rdp->settings;
 	client->autodetect = rdp->autodetect;
 
-	client->context->rdp = rdp;
-	client->context->peer = client;
-	client->context->input = client->input;
-	client->context->update = client->update;
-	client->context->settings = client->settings;
-	client->context->autodetect = client->autodetect;
+	context->rdp = rdp;
+	context->peer = client;
+	context->input = client->input;
+	context->update = client->update;
+	context->settings = client->settings;
+	context->autodetect = client->autodetect;
 
-	client->update->context = client->context;
-	client->input->context = client->context;
-	client->autodetect->context = client->context;
+	client->update->context = context;
+	client->input->context = context;
+	client->autodetect->context = context;
 
 	update_register_server_callbacks(client->update);
 	autodetect_register_server_callbacks(client->autodetect);
 
-	transport_attach(rdp->transport, client->sockfd);
+	if (!transport_attach(rdp->transport, client->sockfd))
+		goto fail_transport_attach;
 
 	rdp->transport->ReceiveCallback = peer_recv_callback;
 	rdp->transport->ReceiveExtra = client;
@@ -644,7 +672,24 @@ void freerdp_peer_context_new(freerdp_peer* client)
 	client->IsWriteBlocked = freerdp_peer_is_write_blocked;
 	client->DrainOutputBuffer = freerdp_peer_drain_output_buffer;
 
-	IFCALL(client->ContextNew, client, client->context);
+	IFCALLRET(client->ContextNew, ret, client, client->context);
+
+	if (ret)
+		return TRUE;
+
+	WLog_ERR(TAG, "ContextNew callback failed");
+
+fail_transport_attach:
+	rdp_free(client->context->rdp);
+fail_rdp:
+	metrics_free(context->metrics);
+fail_metrics:
+	free(client->context);
+fail_context:
+	client->context = NULL;
+
+	WLog_ERR(TAG, "Failed to create new peer context");
+	return FALSE;
 }
 
 void freerdp_peer_context_free(freerdp_peer* client)
@@ -699,7 +744,10 @@ void freerdp_peer_free(freerdp_peer* client)
 	if (!client)
 		return;
 
-	rdp_free(client->context->rdp);
-	free(client->context);
+	if (client->context)
+	{
+		rdp_free(client->context->rdp);
+		free(client->context);
+	}
 	free(client);
 }

@@ -49,15 +49,22 @@ struct thread_data
 	freerdp* instance;
 };
 
-int df_context_new(freerdp* instance, rdpContext* context)
+BOOL df_context_new(freerdp* instance, rdpContext* context)
 {
-	context->channels = freerdp_channels_new();
-	return 0;
+	if (!(context->channels = freerdp_channels_new()))
+		return FALSE;
+
+	return TRUE;
 }
 
 void df_context_free(freerdp* instance, rdpContext* context)
 {
-
+	if (context && context->channels)
+	{
+		freerdp_channels_close(context->channels, instance);
+		freerdp_channels_free(context->channels);
+		context->channels = NULL;
+	}
 }
 
 void df_begin_paint(rdpContext* context)
@@ -186,7 +193,9 @@ BOOL df_post_connect(freerdp* instance)
 	context = ((dfContext*) instance->context);
 	dfi = context->dfi;
 
-	gdi_init(instance, CLRCONV_ALPHA | CLRCONV_INVERT | CLRBUF_16BPP | CLRBUF_32BPP, NULL);
+	if (!gdi_init(instance, CLRCONV_ALPHA | CLRCONV_INVERT | CLRBUF_16BPP | CLRBUF_32BPP, NULL))
+		return FALSE;
+
 	gdi = instance->context->gdi;
 
 	dfi->err = DirectFBCreate(&(dfi->dfb));
@@ -447,7 +456,11 @@ int main(int argc, char* argv[])
 
 	setlocale(LC_ALL, "");
 
-	g_sem = CreateSemaphore(NULL, 0, 1, NULL);
+	if (!(g_sem = CreateSemaphore(NULL, 0, 1, NULL)))
+	{
+		WLog_ERR(TAG, "Failed to create semaphore");
+		exit(1);
+	}
 
 	instance = freerdp_new();
 	instance->PreConnect = df_pre_connect;
@@ -458,7 +471,12 @@ int main(int argc, char* argv[])
 	instance->ContextSize = sizeof(dfContext);
 	instance->ContextNew = df_context_new;
 	instance->ContextFree = df_context_free;
-	freerdp_context_new(instance);
+
+	if (!freerdp_context_new(instance))
+	{
+		WLog_ERR(TAG, "Failed to create FreeRDP context");
+		exit(1);
+	}
 
 	context = (dfContext*) instance->context;
 	channels = instance->context->channels;
@@ -468,7 +486,7 @@ int main(int argc, char* argv[])
 	instance->context->argc = argc;
 	instance->context->argv = argv;
 
-	status = freerdp_client_settings_parse_command_line(instance->settings, argc, argv);
+	status = freerdp_client_settings_parse_command_line(instance->settings, argc, argv, FALSE);
 
 	if (status < 0)
 		exit(0);

@@ -28,6 +28,8 @@ set(${MODULE_PREFIX}_GATEWAY_DIR "gateway")
 set(${MODULE_PREFIX}_GATEWAY_SRCS
 	${${MODULE_PREFIX}_GATEWAY_DIR}/tsg.c
 	${${MODULE_PREFIX}_GATEWAY_DIR}/tsg.h
+	${${MODULE_PREFIX}_GATEWAY_DIR}/rdg.c
+	${${MODULE_PREFIX}_GATEWAY_DIR}/rdg.h
 	${${MODULE_PREFIX}_GATEWAY_DIR}/rpc.c
 	${${MODULE_PREFIX}_GATEWAY_DIR}/rpc.h
 	${${MODULE_PREFIX}_GATEWAY_DIR}/rpc_bind.c
@@ -67,6 +69,8 @@ set(${MODULE_PREFIX}_SRCS
 	license.c
 	license.h
 	errinfo.c
+	errbase.c
+	errconnect.c
 	errinfo.h
 	security.c
 	security.h
@@ -142,3 +146,7 @@ else()
 endif()
 
 freerdp_library_add(${OPENSSL_LIBRARIES})
+
+if(BUILD_TESTING)
+	add_subdirectory(test)
+endif()

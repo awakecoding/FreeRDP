@@ -113,43 +113,31 @@ void xf_rail_send_client_system_command(xfContext* xfc, UINT32 windowId, UINT16 
  */
 void xf_rail_adjust_position(xfContext* xfc, xfAppWindow* appWindow)
 {
-	UINT32 offsetX = 0;
-	UINT32 offsetY = 0;
 	RAIL_WINDOW_MOVE_ORDER windowMove;
 
 	if (!appWindow->is_mapped || appWindow->local_move.state != LMS_NOT_ACTIVE)
 		return;
 
 	/* If current window position disagrees with RDP window position, send update to RDP server */
-	if (appWindow->x != appWindow->visibleOffsetX ||
-			appWindow->y != appWindow->visibleOffsetY ||
+	if (appWindow->x != (appWindow->windowOffsetX - appWindow->localWindowOffsetCorrX) ||
+			appWindow->y != (appWindow->windowOffsetY - appWindow->localWindowOffsetCorrY) ||
 			appWindow->width != appWindow->windowWidth ||
 			appWindow->height != appWindow->windowHeight)
 	{
 		/*
-		 * Although the rail server can give negative window coordinates when updating windowOffsetX and windowOffsetY,
-		 * we can only send unsigned integers to the rail server. Therefore, we always bring negative coordinates up to 0
-		 * when attempting to adjust the rail window.
-		 */
-
-		if (appWindow->windowOffsetX < 0)
-			offsetX = offsetX - appWindow->windowOffsetX;
-
-		if (appWindow->windowOffsetY < 0)
-			offsetY = offsetY - appWindow->windowOffsetY;
-
-		/*
 		 * windowOffset corresponds to the window location on the rail server
-		 * but our local window is based on the visibleOffset since using the windowOffset
-		 * can result in blank areas for a maximized window
+		 * but our local window is based uses a local offset since the windowOffset
+		 * can be negative and but X does not support negative values. Not using an 
+		 * offset can result in blank areas for a maximized window
 		 */
 		windowMove.windowId = appWindow->windowId;
 		/*
-		 * Calculate new offsets for the rail server window
-		 * Negative offset correction + rail server window offset + (difference in visibleOffset and new window local offset)
+		 * Calculate new size/position for the rail window(new values for windowOffsetX/windowOffsetY/windowWidth/windowHeight) on the server
+		 * New position is based on: Current local rail window offset +
+		 * Local offset correction(current correction value to translate the local window offset to the server rail window offset)
 		 */
-		windowMove.left = offsetX + appWindow->windowOffsetX + (appWindow->x - appWindow->visibleOffsetX);
-		windowMove.top = offsetY + appWindow->windowOffsetY + (appWindow->y - appWindow->visibleOffsetY);
+		windowMove.left = appWindow->x + appWindow->localWindowOffsetCorrX;
+		windowMove.top = appWindow->y + appWindow->localWindowOffsetCorrY;
 		windowMove.right = windowMove.left + appWindow->width;
 		windowMove.bottom = windowMove.top + appWindow->height;
 
@@ -162,8 +150,6 @@ void xf_rail_end_local_move(xfContext* xfc, xfAppWindow* appWindow)
 	int x, y;
 	int child_x;
 	int child_y;
-	UINT32 offsetX = 0;
-	UINT32 offsetY = 0;
 	unsigned int mask;
 	Window root_window;
 	Window child_window;
@@ -171,28 +157,18 @@ void xf_rail_end_local_move(xfContext* xfc, xfAppWindow* appWindow)
 	rdpInput* input = xfc->instance->input;
 
 	/*
-	 * Although the rail server can give negative window coordinates when updating windowOffsetX and windowOffsetY,
-	 * we can only send unsigned integers to the rail server. Therefore, we always bring negative coordinates up to 0 when
-	 * attempting to adjust the rail window.
-	 */
-
-	if (appWindow->windowOffsetX < 0)
-		offsetX = offsetX - appWindow->windowOffsetX;
-
-	if (appWindow->windowOffsetY < 0)
-		offsetY = offsetY - appWindow->windowOffsetY;
-
-	/*
 	 * For keyboard moves send and explicit update to RDP server
 	 */
 	windowMove.windowId = appWindow->windowId;
 
 	/*
-	 * Calculate new offsets for the rail server window
-	 * Negative offset correction + rail server window offset + (difference in visibleOffset and new window local offset)
+	 * Calculate new size/position for the rail window(new values for windowOffsetX/windowOffsetY/windowWidth/windowHeight) on the server
+	 * New position is based on: Current local rail window offset +
+	 * Local offset correction(current correction value to translate the local window offset to the server rail window offset)
+	 *
 	 */
-	windowMove.left = offsetX + appWindow->windowOffsetX + (appWindow->x - appWindow->visibleOffsetX);
-	windowMove.top = offsetY + appWindow->windowOffsetY + (appWindow->y - appWindow->visibleOffsetY);
+	windowMove.left = appWindow->x + appWindow->localWindowOffsetCorrX;
+	windowMove.top = appWindow->y + appWindow->localWindowOffsetCorrY;
 	windowMove.right = windowMove.left + appWindow->width; /* In the update to RDP the position is one past the window */
 	windowMove.bottom = windowMove.top + appWindow->height;
 
@@ -218,8 +194,8 @@ void xf_rail_end_local_move(xfContext* xfc, xfAppWindow* appWindow)
 	 * we can start to receive GDI orders for the new window dimensions before we
 	 * receive the RAIL ORDER for the new window size.  This avoids that race condition.
 	 */
-	appWindow->windowOffsetX = offsetX + appWindow->windowOffsetX + (appWindow->x - appWindow->visibleOffsetX);
-	appWindow->windowOffsetY = offsetY + appWindow->windowOffsetY + (appWindow->y - appWindow->visibleOffsetY);
+	appWindow->windowOffsetX = windowMove.left;
+	appWindow->windowOffsetY = windowMove.top;
 	appWindow->windowWidth = appWindow->width;
 	appWindow->windowHeight = appWindow->height;
 	appWindow->local_move.state = LMS_TERMINATING;
@@ -296,7 +272,7 @@ void xf_rail_paint(xfContext* xfc, INT32 uleft, INT32 utop, UINT32 uright, UINT3
 
 /* RemoteApp Core Protocol Extension */
 
-static void xf_rail_window_common(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, WINDOW_STATE_ORDER* windowState)
+static BOOL xf_rail_window_common(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, WINDOW_STATE_ORDER* windowState)
 {
 	xfAppWindow* appWindow = NULL;
 	xfContext* xfc = (xfContext*) context;
@@ -307,7 +283,7 @@ static void xf_rail_window_common(rdpContext* context, WINDOW_ORDER_INFO* orderI
 		appWindow = (xfAppWindow*) calloc(1, sizeof(xfAppWindow));
 
 		if (!appWindow)
-			return;
+			return FALSE;
 
 		appWindow->xfc = xfc;
 
@@ -319,6 +295,9 @@ static void xf_rail_window_common(rdpContext* context, WINDOW_ORDER_INFO* orderI
 		appWindow->y = appWindow->windowOffsetY = windowState->windowOffsetY;
 		appWindow->width = appWindow->windowWidth = windowState->windowWidth;
 		appWindow->height = appWindow->windowHeight = windowState->windowHeight;
+
+		appWindow->localWindowOffsetCorrX = 0;
+		appWindow->localWindowOffsetCorrY = 0;
 
 		if (fieldFlags & WINDOW_ORDER_FIELD_TITLE)
 		{
@@ -338,7 +317,7 @@ static void xf_rail_window_common(rdpContext* context, WINDOW_ORDER_INFO* orderI
 
 		xf_AppWindowInit(xfc, appWindow);
 
-		return;
+		return TRUE;
 	}
 	else
 	{
@@ -347,7 +326,7 @@ static void xf_rail_window_common(rdpContext* context, WINDOW_ORDER_INFO* orderI
 	}
 
 	if (!appWindow)
-		return;
+		return FALSE;
 
 	/* Update Parameters */
 
@@ -358,6 +337,21 @@ static void xf_rail_window_common(rdpContext* context, WINDOW_ORDER_INFO* orderI
 		{
 			appWindow->windowOffsetX = windowState->windowOffsetX;
 			appWindow->windowOffsetY = windowState->windowOffsetY;
+
+			/*
+			 * The rail server can give negative window coordinates when updating windowOffsetX and windowOffsetY,
+			 * but we can only send unsigned integers to the rail server. Therefore, we maintain a local offset.
+			 */
+
+			if (appWindow->windowOffsetX < 0)
+				appWindow->localWindowOffsetCorrX = 0 - appWindow->windowOffsetX;
+			else
+				appWindow->localWindowOffsetCorrX = 0;
+
+			if (appWindow->windowOffsetY < 0)
+				appWindow->localWindowOffsetCorrY = 0 - appWindow->windowOffsetY;
+			else
+				appWindow->localWindowOffsetCorrY = 0;
 		}
 
 		if (fieldFlags & WINDOW_ORDER_FIELD_WND_SIZE)
@@ -427,7 +421,7 @@ static void xf_rail_window_common(rdpContext* context, WINDOW_ORDER_INFO* orderI
 			appWindow->windowRects = (RECTANGLE_16*) calloc(appWindow->numWindowRects, sizeof(RECTANGLE_16));
 
 			if (!appWindow->windowRects)
-				return;
+				return FALSE;
 
 			CopyMemory(appWindow->windowRects, windowState->windowRects,
 					appWindow->numWindowRects * sizeof(RECTANGLE_16));
@@ -455,7 +449,7 @@ static void xf_rail_window_common(rdpContext* context, WINDOW_ORDER_INFO* orderI
 			appWindow->visibilityRects = (RECTANGLE_16*) calloc(appWindow->numVisibilityRects, sizeof(RECTANGLE_16));
 
 			if (!appWindow->visibilityRects)
-				return;
+				return FALSE;
 
 			CopyMemory(appWindow->visibilityRects, windowState->visibilityRects,
 					appWindow->numVisibilityRects * sizeof(RECTANGLE_16));
@@ -488,23 +482,19 @@ static void xf_rail_window_common(rdpContext* context, WINDOW_ORDER_INFO* orderI
 		 * update our local window when that rail window state is minimized
 		 */
 		if (appWindow->rail_state == WINDOW_SHOW_MINIMIZED)
-			return;
+			return TRUE;
 
 		/* Do nothing if window is already in the correct position */
-		if (appWindow->x == appWindow->visibleOffsetX &&
-				appWindow->y == appWindow->visibleOffsetY &&
+		if (appWindow->x == (appWindow->windowOffsetX - appWindow->localWindowOffsetCorrX) &&
+				appWindow->y == (appWindow->windowOffsetY - appWindow->localWindowOffsetCorrY) &&
 				appWindow->width == appWindow->windowWidth &&
 				appWindow->height == appWindow->windowHeight)
 		{
-			/*
-			 * Just ensure entire window area is updated to handle cases where we
-			 * have drawn locally before getting new bitmap from the server
-			 */
 			xf_UpdateWindowArea(xfc, appWindow, 0, 0, appWindow->windowWidth, appWindow->windowHeight);
-			return;
+			return TRUE;
 		}
 
-		xf_MoveWindow(xfc, appWindow, appWindow->visibleOffsetX, appWindow->visibleOffsetY,
+		xf_MoveWindow(xfc, appWindow, appWindow->windowOffsetX - appWindow->localWindowOffsetCorrX, appWindow->windowOffsetY - appWindow->localWindowOffsetCorrY,
 				appWindow->windowWidth, appWindow->windowHeight);
 	}
 
@@ -517,9 +507,10 @@ static void xf_rail_window_common(rdpContext* context, WINDOW_ORDER_INFO* orderI
 	{
 		xf_SetWindowVisibilityRects(xfc, appWindow, appWindow->visibilityRects, appWindow->numVisibilityRects);
 	}
+	return TRUE;
 }
 
-static void xf_rail_window_delete(rdpContext* context, WINDOW_ORDER_INFO* orderInfo)
+static BOOL xf_rail_window_delete(rdpContext* context, WINDOW_ORDER_INFO* orderInfo)
 {
 	xfAppWindow* appWindow = NULL;
 	xfContext* xfc = (xfContext*) context;
@@ -528,14 +519,15 @@ static void xf_rail_window_delete(rdpContext* context, WINDOW_ORDER_INFO* orderI
 			(void*) (UINT_PTR) orderInfo->windowId);
 
 	if (!appWindow)
-		return;
+		return TRUE;
 
 	HashTable_Remove(xfc->railWindows, (void*) (UINT_PTR) orderInfo->windowId);
 
 	xf_DestroyWindow(xfc, appWindow);
+	return TRUE;
 }
 
-static void xf_rail_window_icon(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, WINDOW_ICON_ORDER* windowIcon)
+static BOOL xf_rail_window_icon(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, WINDOW_ICON_ORDER* windowIcon)
 {
 	BOOL bigIcon;
 	xfAppWindow* railWindow;
@@ -545,17 +537,19 @@ static void xf_rail_window_icon(rdpContext* context, WINDOW_ORDER_INFO* orderInf
 			(void*) (UINT_PTR) orderInfo->windowId);
 
 	if (!railWindow)
-		return;
+		return FALSE;
 
 	bigIcon = (orderInfo->fieldFlags & WINDOW_ORDER_FIELD_ICON_BIG) ? TRUE : FALSE;
+
+	return TRUE;
 }
 
-static void xf_rail_window_cached_icon(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, WINDOW_CACHED_ICON_ORDER* windowCachedIcon)
+static BOOL xf_rail_window_cached_icon(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, WINDOW_CACHED_ICON_ORDER* windowCachedIcon)
 {
-
+	return TRUE;
 }
 
-static void xf_rail_notify_icon_common(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, NOTIFY_ICON_STATE_ORDER* notifyIconState)
+static BOOL xf_rail_notify_icon_common(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, NOTIFY_ICON_STATE_ORDER* notifyIconState)
 {
 	if (orderInfo->fieldFlags & WINDOW_ORDER_FIELD_NOTIFY_VERSION)
 	{
@@ -586,32 +580,34 @@ static void xf_rail_notify_icon_common(rdpContext* context, WINDOW_ORDER_INFO* o
 	{
 
 	}
+	return TRUE;
 }
 
-static void xf_rail_notify_icon_create(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, NOTIFY_ICON_STATE_ORDER* notifyIconState)
+static BOOL xf_rail_notify_icon_create(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, NOTIFY_ICON_STATE_ORDER* notifyIconState)
 {
-	xf_rail_notify_icon_common(context, orderInfo, notifyIconState);
+	return xf_rail_notify_icon_common(context, orderInfo, notifyIconState);
 }
 
-static void xf_rail_notify_icon_update(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, NOTIFY_ICON_STATE_ORDER* notifyIconState)
+static BOOL xf_rail_notify_icon_update(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, NOTIFY_ICON_STATE_ORDER* notifyIconState)
 {
-	xf_rail_notify_icon_common(context, orderInfo, notifyIconState);
+	return xf_rail_notify_icon_common(context, orderInfo, notifyIconState);
 }
 
-static void xf_rail_notify_icon_delete(rdpContext* context, WINDOW_ORDER_INFO* orderInfo)
+static BOOL xf_rail_notify_icon_delete(rdpContext* context, WINDOW_ORDER_INFO* orderInfo)
 {
-
+	return TRUE;
 }
 
-static void xf_rail_monitored_desktop(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, MONITORED_DESKTOP_ORDER* monitoredDesktop)
+static BOOL xf_rail_monitored_desktop(rdpContext* context, WINDOW_ORDER_INFO* orderInfo, MONITORED_DESKTOP_ORDER* monitoredDesktop)
 {
-
+	return TRUE;
 }
 
-static void xf_rail_non_monitored_desktop(rdpContext* context, WINDOW_ORDER_INFO* orderInfo)
+static BOOL xf_rail_non_monitored_desktop(rdpContext* context, WINDOW_ORDER_INFO* orderInfo)
 {
 	xfContext* xfc = (xfContext*) context;
 	xf_rail_disable_remoteapp_mode(xfc);
+	return TRUE;
 }
 
 void xf_rail_register_update_callbacks(rdpUpdate* update)
@@ -875,6 +871,8 @@ int xf_rail_init(xfContext* xfc, RailClientContext* rail)
 	rail->ServerGetAppIdResponse = xf_rail_server_get_appid_response;
 
 	xfc->railWindows = HashTable_New(TRUE);
+	if (!xfc->railWindows)
+		return 0;
 
 	return 1;
 }

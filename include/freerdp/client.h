@@ -31,10 +31,10 @@ extern "C" {
  * Client Entry Points
  */
 
-typedef void (*pRdpGlobalInit)(void);
+typedef BOOL (*pRdpGlobalInit)(void);
 typedef void (*pRdpGlobalUninit)(void);
 
-typedef int (*pRdpClientNew)(freerdp* instance, rdpContext* context);
+typedef BOOL (*pRdpClientNew)(freerdp* instance, rdpContext* context);
 typedef void (*pRdpClientFree)(freerdp* instance, rdpContext* context);
 
 typedef int (*pRdpClientStart)(rdpContext* context);
@@ -85,7 +85,8 @@ FREERDP_API int freerdp_client_stop(rdpContext* context);
 FREERDP_API freerdp* freerdp_client_get_instance(rdpContext* context);
 FREERDP_API HANDLE freerdp_client_get_thread(rdpContext* context);
 
-FREERDP_API int freerdp_client_settings_parse_command_line(rdpSettings* settings, int argc, char** argv);
+FREERDP_API int freerdp_client_settings_parse_command_line(rdpSettings* settings,
+	int argc, char** argv, BOOL allowUnknown);
 
 FREERDP_API int freerdp_client_settings_parse_connection_file(rdpSettings* settings, const char* filename);
 FREERDP_API int freerdp_client_settings_parse_connection_file_buffer(rdpSettings* settings, const BYTE* buffer, size_t size);

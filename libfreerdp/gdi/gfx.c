@@ -192,17 +192,19 @@ int gdi_SurfaceCommand_RemoteFX(rdpGdi* gdi, RdpgfxClientContext* context, RDPGF
 	REGION16 clippingRects;
 	RECTANGLE_16 clippingRect;
 
-	freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_REMOTEFX);
+	if (!freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_REMOTEFX))
+		return -1;
 
 	surface = (gdiGfxSurface*) context->GetSurfaceData(context, cmd->surfaceId);
 
 	if (!surface)
 		return -1;
 
-	message = rfx_process_message(gdi->codecs->rfx, cmd->data, cmd->length);
-
-	if (!message)
+	if (!(message = rfx_process_message(gdi->codecs->rfx, cmd->data, cmd->length)))
+	{
+		WLog_ERR(TAG, "Failed to process RemoteFX message");
 		return -1;
+	}
 
 	region16_init(&clippingRects);
 
@@ -248,6 +250,8 @@ int gdi_SurfaceCommand_RemoteFX(rdpGdi* gdi, RdpgfxClientContext* context, RDPGF
 		region16_uninit(&updateRegion);
 	}
 
+	region16_uninit(&clippingRects);
+
 	rfx_message_free(gdi->codecs->rfx, message);
 
 	if (!gdi->inGfxFrame)
@@ -263,7 +267,8 @@ int gdi_SurfaceCommand_ClearCodec(rdpGdi* gdi, RdpgfxClientContext* context, RDP
 	gdiGfxSurface* surface;
 	RECTANGLE_16 invalidRect;
 
-	freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_CLEARCODEC);
+	if (!freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_CLEARCODEC))
+		return -1;
 
 	surface = (gdiGfxSurface*) context->GetSurfaceData(context, cmd->surfaceId);
 
@@ -302,7 +307,8 @@ int gdi_SurfaceCommand_Planar(rdpGdi* gdi, RdpgfxClientContext* context, RDPGFX_
 	gdiGfxSurface* surface;
 	RECTANGLE_16 invalidRect;
 
-	freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_PLANAR);
+	if (!freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_PLANAR))
+		return -1;
 
 	surface = (gdiGfxSurface*) context->GetSurfaceData(context, cmd->surfaceId);
 
@@ -332,14 +338,12 @@ int gdi_SurfaceCommand_H264(rdpGdi* gdi, RdpgfxClientContext* context, RDPGFX_SU
 	int status;
 	UINT32 i;
 	BYTE* DstData = NULL;
-	H264_CONTEXT* h264;
 	gdiGfxSurface* surface;
 	RDPGFX_H264_METABLOCK* meta;
 	RDPGFX_H264_BITMAP_STREAM* bs;
 
-	freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_H264);
-
-	h264 = gdi->codecs->h264;
+	if (!freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_H264))
+		return -1;
 
 	bs = (RDPGFX_H264_BITMAP_STREAM*) cmd->extra;
 
@@ -356,7 +360,8 @@ int gdi_SurfaceCommand_H264(rdpGdi* gdi, RdpgfxClientContext* context, RDPGFX_SU
 	DstData = surface->data;
 
 	status = h264_decompress(gdi->codecs->h264, bs->data, bs->length, &DstData,
-			PIXEL_FORMAT_XRGB32, surface->scanline , surface->height, meta->regionRects, meta->numRegionRects);
+			PIXEL_FORMAT_XRGB32, surface->scanline , surface->width, surface->height,
+			meta->regionRects, meta->numRegionRects);
 
 	if (status < 0)
 	{
@@ -381,7 +386,8 @@ int gdi_SurfaceCommand_Alpha(rdpGdi* gdi, RdpgfxClientContext* context, RDPGFX_S
 	gdiGfxSurface* surface;
 	RECTANGLE_16 invalidRect;
 
-	freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_ALPHACODEC);
+	if (!freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_ALPHACODEC))
+		return -1;
 
 	surface = (gdiGfxSurface*) context->GetSurfaceData(context, cmd->surfaceId);
 
@@ -427,7 +433,8 @@ int gdi_SurfaceCommand_Progressive(rdpGdi* gdi, RdpgfxClientContext* context, RD
 	RFX_PROGRESSIVE_TILE* tile;
 	PROGRESSIVE_BLOCK_REGION* region;
 
-	freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_PROGRESSIVE);
+	if (!freerdp_client_codecs_prepare(gdi->codecs, FREERDP_CODEC_PROGRESSIVE))
+		return -1;
 
 	surface = (gdiGfxSurface*) context->GetSurfaceData(context, cmd->surfaceId);
 
@@ -495,6 +502,8 @@ int gdi_SurfaceCommand_Progressive(rdpGdi* gdi, RdpgfxClientContext* context, RD
 
 		region16_uninit(&updateRegion);
 	}
+
+	region16_uninit(&clippingRects);
 
 	if (!gdi->inGfxFrame)
 		gdi_OutputUpdate(gdi);
@@ -664,7 +673,6 @@ int gdi_SurfaceToSurface(RdpgfxClientContext* context, RDPGFX_SURFACE_TO_SURFACE
 	rdpGdi* gdi = (rdpGdi*) context->custom;
 
 	rectSrc = &(surfaceToSurface->rectSrc);
-	destPt = &surfaceToSurface->destPts[0];
 
 	surfaceSrc = (gdiGfxSurface*) context->GetSurfaceData(context, surfaceToSurface->surfaceIdSrc);
 

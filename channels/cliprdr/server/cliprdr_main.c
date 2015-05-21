@@ -629,11 +629,10 @@ static int cliprdr_server_receive_format_list(CliprdrServerContext* context, wSt
 
 	for (index = 0; index < formatList.numFormats; index++)
 	{
-		if (formats[index].formatName)
-			free(formats[index].formatName);
+		free(formatList.formats[index].formatName);
 	}
 
-	free(formats);
+	free(formatList.formats);
 
 	return 1;
 }
@@ -925,7 +924,8 @@ int cliprdr_server_read(CliprdrServerContext* context)
 		Stream_Read_UINT16(s, header.msgFlags); /* msgFlags (2 bytes) */
 		Stream_Read_UINT32(s, header.dataLen); /* dataLen (4 bytes) */
 
-		Stream_EnsureCapacity(s, (header.dataLen + CLIPRDR_HEADER_LENGTH));
+		if (!Stream_EnsureCapacity(s, (header.dataLen + CLIPRDR_HEADER_LENGTH)))
+			return -1;
 		Stream_SetPosition(s, position);
 
 		if (Stream_GetPosition(s) < (header.dataLen + CLIPRDR_HEADER_LENGTH))

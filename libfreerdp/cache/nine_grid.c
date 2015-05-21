@@ -35,16 +35,16 @@
 
 #define TAG FREERDP_TAG("cache.nine_grid")
 
-void update_gdi_draw_nine_grid(rdpContext* context, DRAW_NINE_GRID_ORDER* draw_nine_grid)
+BOOL update_gdi_draw_nine_grid(rdpContext* context, DRAW_NINE_GRID_ORDER* draw_nine_grid)
 {
 	rdpCache* cache = context->cache;
-	IFCALL(cache->nine_grid->DrawNineGrid, context, draw_nine_grid);
+	return IFCALLRESULT(TRUE, cache->nine_grid->DrawNineGrid, context, draw_nine_grid);
 }
 
-void update_gdi_multi_draw_nine_grid(rdpContext* context, MULTI_DRAW_NINE_GRID_ORDER* multi_draw_nine_grid)
+BOOL update_gdi_multi_draw_nine_grid(rdpContext* context, MULTI_DRAW_NINE_GRID_ORDER* multi_draw_nine_grid)
 {
 	rdpCache* cache = context->cache;
-	IFCALL(cache->nine_grid->MultiDrawNineGrid, context, multi_draw_nine_grid);
+	return IFCALLRESULT(TRUE, cache->nine_grid->MultiDrawNineGrid, context, multi_draw_nine_grid);
 }
 
 void nine_grid_cache_register_callbacks(rdpUpdate* update)
@@ -81,19 +81,13 @@ void* nine_grid_cache_get(rdpNineGridCache* nine_grid, UINT32 index)
 
 void nine_grid_cache_put(rdpNineGridCache* nine_grid, UINT32 index, void* entry)
 {
-	void* prevEntry;
-
 	if (index >= nine_grid->maxEntries)
 	{
 		WLog_ERR(TAG,  "invalid NineGrid index: 0x%04X", index);
 		return;
 	}
 
-	prevEntry = nine_grid->entries[index].entry;
-
-	if (prevEntry != NULL)
-		free(prevEntry);
-
+	free(nine_grid->entries[index].entry);
 	nine_grid->entries[index].entry = entry;
 }
 
@@ -130,10 +124,7 @@ void nine_grid_cache_free(rdpNineGridCache* nine_grid)
 		if (nine_grid->entries != NULL)
 		{
 			for (i = 0; i < (int) nine_grid->maxEntries; i++)
-			{
-				if (nine_grid->entries[i].entry != NULL)
-					free(nine_grid->entries[i].entry);
-			}
+				free(nine_grid->entries[i].entry);
 
 			free(nine_grid->entries);
 		}

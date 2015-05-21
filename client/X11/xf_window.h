@@ -46,6 +46,10 @@ typedef struct xf_window xfWindow;
 #define _NET_WM_MOVERESIZE_MOVE_KEYBOARD    10   /* move via keyboard */
 #define _NET_WM_MOVERESIZE_CANCEL           11   /* cancel operation */
 
+#define _NET_WM_STATE_REMOVE 0 /* remove/unset property */
+#define _NET_WM_STATE_ADD 1 /* add/set property */
+#define _NET_WM_STATE_TOGGLE 2 /* toggle property */
+
 enum xf_localmove_state
 {
 	LMS_NOT_ACTIVE,
@@ -76,7 +80,6 @@ struct xf_window
 	int shmid;
 	Window handle;
 	Window* xfwin;
-	BOOL fullscreen;
 	BOOL decorations;
 	BOOL is_mapped;
 	BOOL is_transient;
@@ -118,6 +121,9 @@ struct xf_app_window
 	UINT32 numVisibilityRects;
 	RECTANGLE_16* visibilityRects;
 
+	UINT32 localWindowOffsetCorrX;
+	UINT32 localWindowOffsetCorrY;
+
 	GC gc;
 	int shmid;
 	Window handle;
@@ -140,7 +146,7 @@ void xf_SetWindowFullscreen(xfContext* xfc, xfWindow* window, BOOL fullscreen);
 void xf_SetWindowDecorations(xfContext* xfc, Window window, BOOL show);
 void xf_SetWindowUnlisted(xfContext* xfc, Window window);
 
-xfWindow* xf_CreateDesktopWindow(xfContext* xfc, char* name, int width, int height, BOOL decorations);
+xfWindow* xf_CreateDesktopWindow(xfContext* xfc, char* name, int width, int height);
 void xf_ResizeDesktopWindow(xfContext* xfc, xfWindow* window, int width, int height);
 void xf_DestroyDesktopWindow(xfContext* xfc, xfWindow* window);
 

@@ -75,12 +75,16 @@ void MessageQueue_Dispatch(wMessageQueue* queue, wMessage* message)
 	{
 		int old_capacity;
 		int new_capacity;
+		wMessage* new_arr;
 
 		old_capacity = queue->capacity;
 		new_capacity = queue->capacity * 2;
 
+		new_arr = (wMessage*) realloc(queue->array, sizeof(wMessage) * new_capacity);
+		if (!new_arr)
+			return;
+		queue->array = new_arr;
 		queue->capacity = new_capacity;
-		queue->array = (wMessage*) realloc(queue->array, sizeof(wMessage) * queue->capacity);
 		ZeroMemory(&(queue->array[old_capacity]), old_capacity * sizeof(wMessage));
 
 		if (queue->tail < old_capacity)
@@ -192,11 +196,26 @@ wMessageQueue* MessageQueue_New(const wObject *callback)
 		queue->size = 0;
 
 		queue->capacity = 32;
-		queue->array = (wMessage*) malloc(sizeof(wMessage) * queue->capacity);
-		ZeroMemory(queue->array, sizeof(wMessage) * queue->capacity);
+		queue->array = (wMessage*) calloc(1, sizeof(wMessage) * queue->capacity);
+		if (!queue->array)
+		{
+			free(queue);
+			return NULL;
+		}
 
-		InitializeCriticalSectionAndSpinCount(&queue->lock, 4000);
+		if (!InitializeCriticalSectionAndSpinCount(&queue->lock, 4000))
+		{
+			free(queue);
+			return NULL;
+		}
 		queue->event = CreateEvent(NULL, TRUE, FALSE, NULL);
+		if (!queue->event)
+		{
+			free(queue->array);
+			DeleteCriticalSection(&queue->lock);
+			free(queue);
+			return NULL;
+		}
 
 		if (callback)
 			queue->object = *callback;

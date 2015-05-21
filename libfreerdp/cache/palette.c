@@ -30,15 +30,18 @@
 
 #define TAG FREERDP_TAG("cache.palette")
 
-static void update_gdi_cache_color_table(rdpContext* context, CACHE_COLOR_TABLE_ORDER* cacheColorTable)
+static BOOL update_gdi_cache_color_table(rdpContext* context, CACHE_COLOR_TABLE_ORDER* cacheColorTable)
 {
 	UINT32* colorTable;
 	rdpCache* cache = context->cache;
 
 	colorTable = (UINT32*) malloc(sizeof(UINT32) * 256);
+	if (!colorTable)
+		return FALSE;
 	CopyMemory(colorTable, cacheColorTable->colorTable, sizeof(UINT32) * 256);
 
 	palette_cache_put(cache->palette, cacheColorTable->cacheIndex, (void*) colorTable);
+	return TRUE;
 }
 
 void* palette_cache_get(rdpPaletteCache* paletteCache, UINT32 index)
@@ -67,15 +70,11 @@ void palette_cache_put(rdpPaletteCache* paletteCache, UINT32 index, void* entry)
 	if (index >= paletteCache->maxEntries)
 	{
 		WLog_ERR(TAG,  "invalid color table index: 0x%04X", index);
-
-		if (entry)
-			free(entry);
-
+		free(entry);
 		return;
 	}
 
-	if (paletteCache->entries[index].entry)
-		free(paletteCache->entries[index].entry);
+	free(paletteCache->entries[index].entry);
 
 	paletteCache->entries[index].entry = entry;
 }
@@ -108,10 +107,7 @@ void palette_cache_free(rdpPaletteCache* paletteCache)
 		UINT32 i;
 
 		for (i = 0; i< paletteCache->maxEntries; i++)
-		{
-			if (paletteCache->entries[i].entry)
-				free(paletteCache->entries[i].entry);
-		}
+			free(paletteCache->entries[i].entry);
 
 		free(paletteCache->entries);
 		free(paletteCache);

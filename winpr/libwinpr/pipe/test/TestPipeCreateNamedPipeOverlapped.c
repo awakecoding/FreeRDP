@@ -45,8 +45,21 @@ static void* named_pipe_client_thread(void* arg)
 
 	lpReadBuffer = (BYTE*) malloc(PIPE_BUFFER_SIZE);
 	lpWriteBuffer = (BYTE*) malloc(PIPE_BUFFER_SIZE);
+	if (!lpReadBuffer || !lpWriteBuffer)
+	{
+		printf("Error allocating memory\n");
+		free(lpReadBuffer);
+		free(lpWriteBuffer);
+		return NULL;
+	}
 	ZeroMemory(&overlapped, sizeof(OVERLAPPED));
-	hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+	if (!(hEvent = CreateEvent(NULL, TRUE, FALSE, NULL)))
+	{
+		printf("CreateEvent failure: (%d)\n", GetLastError());
+		return NULL;
+	}
+
 	overlapped.hEvent = hEvent;
 	nNumberOfBytesToWrite = PIPE_BUFFER_SIZE;
 	FillMemory(lpWriteBuffer, PIPE_BUFFER_SIZE, 0x59);
@@ -130,7 +143,13 @@ static void* named_pipe_server_thread(void* arg)
 
 	SetEvent(ReadyEvent);
 	ZeroMemory(&overlapped, sizeof(OVERLAPPED));
-	hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+	if (!(hEvent = CreateEvent(NULL, TRUE, FALSE, NULL)))
+	{
+		printf("CreateEvent failure: (%d)\n", GetLastError());
+		return NULL;
+	}
+
 	overlapped.hEvent = hEvent;
 	fConnected = ConnectNamedPipe(hNamedPipe, &overlapped);
 	printf("ConnectNamedPipe status: %d\n", GetLastError());
@@ -153,6 +172,13 @@ static void* named_pipe_server_thread(void* arg)
 
 	lpReadBuffer = (BYTE*) malloc(PIPE_BUFFER_SIZE);
 	lpWriteBuffer = (BYTE*) malloc(PIPE_BUFFER_SIZE);
+	if (!lpReadBuffer || !lpWriteBuffer)
+	{
+		printf("Error allocating memory\n");
+		free(lpReadBuffer);
+		free(lpWriteBuffer);
+		return NULL;
+	}
 	nNumberOfBytesToRead = PIPE_BUFFER_SIZE;
 	ZeroMemory(lpReadBuffer, PIPE_BUFFER_SIZE);
 	fSuccess = ReadFile(hNamedPipe, lpReadBuffer, nNumberOfBytesToRead, NULL, &overlapped);
@@ -208,11 +234,26 @@ int TestPipeCreateNamedPipeOverlapped(int argc, char* argv[])
 {
 	HANDLE ClientThread;
 	HANDLE ServerThread;
-	ReadyEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	ClientThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) named_pipe_client_thread, NULL, 0, NULL);
-	ServerThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) named_pipe_server_thread, NULL, 0, NULL);
+
+	if (!(ReadyEvent = CreateEvent(NULL, TRUE, FALSE, NULL)))
+	{
+		printf("CreateEvent failed: %d\n", GetLastError());
+		return -1;
+	}
+	if (!(ClientThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) named_pipe_client_thread, NULL, 0, NULL)))
+	{
+		printf("CreateThread (client) failed: %d\n", GetLastError());
+		return -1;
+	}
+	if (!(ServerThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) named_pipe_server_thread, NULL, 0, NULL)))
+	{
+		printf("CreateThread (server) failed: %d\n", GetLastError());
+		return -1;
+	}
+
 	WaitForSingleObject(ClientThread, INFINITE);
 	WaitForSingleObject(ServerThread, INFINITE);
+
+	/* FIXME: Since this function always returns 0 this test is very much useless */
 	return 0;
 }
-

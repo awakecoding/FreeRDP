@@ -198,8 +198,7 @@ void ntlm_free_unicode_string(PUNICODE_STRING string)
 	{
 		if (string->Length > 0)
 		{
-			if (string->Buffer)
-				free(string->Buffer);
+			free(string->Buffer);
 
 			string->Buffer = NULL;
 			string->Length = 0;
@@ -437,7 +436,8 @@ int ntlm_construct_authenticate_target_info(NTLM_CONTEXT* context)
 	if (context->NTLMv2)
 		size += 8; /* unknown 8-byte padding */
 
-	sspi_SecBufferAlloc(&context->AuthenticateTargetInfo, size);
+	if (!sspi_SecBufferAlloc(&context->AuthenticateTargetInfo, size))
+		return -1;
 	AuthenticateTargetInfo = (NTLM_AV_PAIR*) context->AuthenticateTargetInfo.pvBuffer;
 	ntlm_av_pair_list_init(AuthenticateTargetInfo);
 

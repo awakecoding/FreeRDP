@@ -84,8 +84,7 @@ void crypto_rc4(CryptoRc4 rc4, UINT32 length, const BYTE* in_data, BYTE* out_dat
 
 void crypto_rc4_free(CryptoRc4 rc4)
 {
-	if (rc4)
-		free(rc4);
+	free(rc4);
 }
 
 CryptoDes3 crypto_des3_encrypt_init(const BYTE* key, const BYTE* ivec)
@@ -112,19 +111,20 @@ CryptoDes3 crypto_des3_decrypt_init(const BYTE* key, const BYTE* ivec)
 	return des3;
 }
 
-void crypto_des3_encrypt(CryptoDes3 des3, UINT32 length, const BYTE* in_data, BYTE* out_data)
+BOOL crypto_des3_encrypt(CryptoDes3 des3, UINT32 length, const BYTE* in_data, BYTE* out_data)
 {
 	int len;
-	EVP_EncryptUpdate(&des3->des3_ctx, out_data, &len, in_data, length);
+	return EVP_EncryptUpdate(&des3->des3_ctx, out_data, &len, in_data, length) == 1;
 }
 
-void crypto_des3_decrypt(CryptoDes3 des3, UINT32 length, const BYTE* in_data, BYTE* out_data)
+BOOL crypto_des3_decrypt(CryptoDes3 des3, UINT32 length, const BYTE* in_data, BYTE* out_data)
 {
 	int len;
-	EVP_DecryptUpdate(&des3->des3_ctx, out_data, &len, in_data, length);
+	int ret = EVP_DecryptUpdate(&des3->des3_ctx, out_data, &len, in_data, length);
 
 	if (length != len)
 		abort(); /* TODO */
+	return ret == 1;
 }
 
 void crypto_des3_free(CryptoDes3 des3)
@@ -145,14 +145,24 @@ CryptoHmac crypto_hmac_new(void)
 	return hmac;
 }
 
-void crypto_hmac_sha1_init(CryptoHmac hmac, const BYTE* data, UINT32 length)
+BOOL crypto_hmac_sha1_init(CryptoHmac hmac, const BYTE* data, UINT32 length)
 {
+#if (OPENSSL_VERSION_NUMBER >= 0x00909000)
+	return HMAC_Init_ex(&hmac->hmac_ctx, data, length, EVP_sha1(), NULL) == 1;
+#else
 	HMAC_Init_ex(&hmac->hmac_ctx, data, length, EVP_sha1(), NULL);
+	return TRUE;
+#endif
 }
 
-void crypto_hmac_md5_init(CryptoHmac hmac, const BYTE* data, UINT32 length)
+BOOL crypto_hmac_md5_init(CryptoHmac hmac, const BYTE* data, UINT32 length)
 {
+#if (OPENSSL_VERSION_NUMBER >= 0x00909000)
+	return HMAC_Init_ex(&hmac->hmac_ctx, data, length, EVP_md5(), NULL) == 1;
+#else
 	HMAC_Init_ex(&hmac->hmac_ctx, data, length, EVP_md5(), NULL);
+	return TRUE;
+#endif
 }
 
 void crypto_hmac_update(CryptoHmac hmac, const BYTE* data, UINT32 length)
@@ -427,8 +437,7 @@ FREERDP_API void crypto_cert_subject_alt_name_free(int count, int *lengths,
 {
 	int i;
 
-	if (lengths)
-		free(lengths);
+	free(lengths);
 
 	if (alt_name)
 	{
@@ -523,7 +532,7 @@ BOOL x509_verify_certificate(CryptoCert cert, char* certificate_store_path)
 
 	if (certificate_store_path != NULL)
 	{
-		X509_LOOKUP_add_dir(lookup, certificate_store_path, X509_FILETYPE_ASN1);
+		X509_LOOKUP_add_dir(lookup, certificate_store_path, X509_FILETYPE_PEM);
 	}
 
 	csc = X509_STORE_CTX_new();
@@ -533,7 +542,7 @@ BOOL x509_verify_certificate(CryptoCert cert, char* certificate_store_path)
 
 	X509_STORE_set_flags(cert_ctx, 0);
 
-	if (!X509_STORE_CTX_init(csc, cert_ctx, xcert, 0))
+	if (!X509_STORE_CTX_init(csc, cert_ctx, xcert, cert->px509chain))
 		goto end;
 
 	if (X509_verify_cert(csc) == 1)

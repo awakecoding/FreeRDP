@@ -46,6 +46,7 @@
 #include "../shadow_capture.h"
 #include "../shadow_surface.h"
 #include "../shadow_subsystem.h"
+#include "../shadow_mcevent.h"
 
 #include "x11_shadow.h"
 
@@ -708,13 +709,7 @@ int x11_shadow_screen_grab(x11ShadowSubsystem* subsystem)
 
 		count = ArrayList_Count(server->clients);
 
-		InitializeSynchronizationBarrier(&(subsystem->barrier), count + 1, -1);
-
-		SetEvent(subsystem->updateEvent);
-
-		EnterSynchronizationBarrier(&(subsystem->barrier), 0);
-
-		DeleteSynchronizationBarrier(&(subsystem->barrier));
+		shadow_multiclient_publish_and_wait(subsystem->updateEvent);
 
 		if (count == 1)
 		{
@@ -727,8 +722,6 @@ int x11_shadow_screen_grab(x11ShadowSubsystem* subsystem)
 				subsystem->captureFrameRate = client->encoder->fps;
 			}
 		}
-
-		ResetEvent(subsystem->updateEvent);
 
 		region16_clear(&(subsystem->invalidRegion));
 	}
@@ -1236,7 +1229,8 @@ int x11_shadow_subsystem_init(x11ShadowSubsystem* subsystem)
 			subsystem->use_xdamage = FALSE;
 	}
 
-	subsystem->event = CreateFileDescriptorEvent(NULL, FALSE, FALSE, subsystem->xfds);
+	if (!(subsystem->event = CreateFileDescriptorEvent(NULL, FALSE, FALSE, subsystem->xfds)))
+		return -1;
 
 	virtualScreen = &(subsystem->virtualScreen);
 
@@ -1283,9 +1277,13 @@ int x11_shadow_subsystem_start(x11ShadowSubsystem* subsystem)
 	if (!subsystem)
 		return -1;
 
-	subsystem->thread = CreateThread(NULL, 0,
+	if (!(subsystem->thread = CreateThread(NULL, 0,
 			(LPTHREAD_START_ROUTINE) x11_shadow_subsystem_thread,
-			(void*) subsystem, 0, NULL);
+			(void*) subsystem, 0, NULL)))
+	{
+		WLog_ERR(TAG, "Failed to create thread");
+		return -1;
+	}
 
 	return 1;
 }

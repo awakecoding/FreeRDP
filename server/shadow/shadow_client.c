@@ -33,7 +33,7 @@
 
 #define TAG CLIENT_TAG("shadow")
 
-void shadow_client_context_new(freerdp_peer* peer, rdpShadowClient* client)
+BOOL shadow_client_context_new(freerdp_peer* peer, rdpShadowClient* client)
 {
 	rdpSettings* settings;
 	rdpShadowServer* server;
@@ -62,10 +62,13 @@ void shadow_client_context_new(freerdp_peer* peer, rdpShadowClient* client)
 	settings->TlsSecurity = TRUE;
 	settings->NlaSecurity = FALSE;
 
-	settings->CertificateFile = _strdup(server->CertificateFile);
-	settings->PrivateKeyFile = _strdup(server->PrivateKeyFile);
+	if (!(settings->CertificateFile = _strdup(server->CertificateFile)))
+		goto fail_cert_file;
+	if (!(settings->PrivateKeyFile = _strdup(server->PrivateKeyFile)))
+		goto fail_privkey_file;
+	if (!(settings->RdpKeyFile = _strdup(settings->PrivateKeyFile)))
+		goto fail_rdpkey_file;
 
-	settings->RdpKeyFile = _strdup(settings->PrivateKeyFile);
 
 	if (server->ipcSocket)
 	{
@@ -77,17 +80,46 @@ void shadow_client_context_new(freerdp_peer* peer, rdpShadowClient* client)
 	client->mayView = server->mayView;
 	client->mayInteract = server->mayInteract;
 
-	InitializeCriticalSectionAndSpinCount(&(client->lock), 4000);
+	if (!InitializeCriticalSectionAndSpinCount(&(client->lock), 4000))
+		goto fail_client_lock;
 
 	region16_init(&(client->invalidRegion));
 
 	client->vcm = WTSOpenServerA((LPSTR) peer->context);
+	if (!client->vcm || client->vcm == INVALID_HANDLE_VALUE)
+		goto fail_open_server;
 
-	client->StopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+	if (!(client->StopEvent = CreateEvent(NULL, TRUE, FALSE, NULL)))
+		goto fail_stop_event;
 
-	client->encoder = shadow_encoder_new(client);
+	if (!(client->encoder = shadow_encoder_new(client)))
+		goto fail_encoder_new;
 
-	ArrayList_Add(server->clients, (void*) client);
+	if (ArrayList_Add(server->clients, (void*) client) >= 0)
+		return TRUE;
+
+	shadow_encoder_free(client->encoder);
+	client->encoder = NULL;
+fail_encoder_new:
+	CloseHandle(client->StopEvent);
+	client->StopEvent = NULL;
+fail_stop_event:
+	WTSCloseServer((HANDLE) client->vcm);
+	client->vcm = NULL;
+fail_open_server:
+	DeleteCriticalSection(&(client->lock));
+fail_client_lock:
+	free(settings->RdpKeyFile);
+	settings->RdpKeyFile = NULL;
+fail_rdpkey_file:
+	free(settings->PrivateKeyFile);
+	settings->PrivateKeyFile = NULL;
+fail_privkey_file:
+	free(settings->CertificateFile);
+	settings->CertificateFile = NULL;
+fail_cert_file:
+
+	return FALSE;
 }
 
 void shadow_client_context_free(freerdp_peer* peer, rdpShadowClient* client)
@@ -221,14 +253,11 @@ void shadow_client_refresh_rect(rdpShadowClient* client, BYTE count, RECTANGLE_1
 	SHADOW_MSG_IN_REFRESH_OUTPUT* wParam;
 	wMessagePipe* MsgPipe = client->subsystem->MsgPipe;
 
-	wParam = (SHADOW_MSG_IN_REFRESH_OUTPUT*) calloc(1, sizeof(SHADOW_MSG_IN_REFRESH_OUTPUT));
-
-	if (!wParam || !areas)
-	{
-		if (wParam)
-			free (wParam);
+	if (!areas)
 		return;
-	}
+
+	if (!(wParam = (SHADOW_MSG_IN_REFRESH_OUTPUT*) calloc(1, sizeof(SHADOW_MSG_IN_REFRESH_OUTPUT))))
+		return;
 
 	wParam->numRects = (UINT32) count;
 
@@ -384,6 +413,7 @@ int shadow_client_send_surface_bits(rdpShadowClient* client, rdpShadowSurface* s
 	{
 		RFX_RECT rect;
 		RFX_MESSAGE* messages;
+		RFX_RECT *messageRects = NULL;
 
 		shadow_encoder_prepare(encoder, FREERDP_CODEC_REMOTEFX);
 
@@ -394,9 +424,12 @@ int shadow_client_send_surface_bits(rdpShadowClient* client, rdpShadowSurface* s
 		rect.width = nWidth;
 		rect.height = nHeight;
 
-		messages = rfx_encode_messages(encoder->rfx, &rect, 1, pSrcData,
+		if (!(messages = rfx_encode_messages(encoder->rfx, &rect, 1, pSrcData,
 				surface->width, surface->height, nSrcStep, &numMessages,
-				settings->MultifragMaxRequestSize);
+				settings->MultifragMaxRequestSize)))
+		{
+			return 0;
+		}
 
 		cmd.codecID = settings->RemoteFxCodecId;
 
@@ -409,10 +442,20 @@ int shadow_client_send_surface_bits(rdpShadowClient* client, rdpShadowSurface* s
 		cmd.width = surface->width;
 		cmd.height = surface->height;
 
+		if (numMessages > 0)
+			messageRects = messages[0].rects;
+
 		for (i = 0; i < numMessages; i++)
 		{
 			Stream_SetPosition(s, 0);
-			rfx_write_message(encoder->rfx, s, &messages[i]);
+			if (!rfx_write_message(encoder->rfx, s, &messages[i]))
+			{
+				while (i < numMessages)
+				{
+					rfx_message_free(encoder->rfx, &messages[i++]);
+				}
+				break;
+			}
 			rfx_message_free(encoder->rfx, &messages[i]);
 
 			cmd.bitmapDataLength = Stream_GetPosition(s);
@@ -427,6 +470,7 @@ int shadow_client_send_surface_bits(rdpShadowClient* client, rdpShadowSurface* s
 				IFCALL(update->SurfaceFrameBits, update->context, &cmd, first, last, frameId);
 		}
 
+		free(messageRects);
 		free(messages);
 	}
 	else if (settings->NSCodec)
@@ -906,6 +950,7 @@ void* shadow_client_thread(rdpShadowClient* client)
 	HANDLE StopEvent;
 	HANDLE ClientEvent;
 	HANDLE ChannelEvent;
+	void* UpdateSubscriber;
 	HANDLE UpdateEvent;
 	freerdp_peer* peer;
 	rdpContext* context;
@@ -937,8 +982,15 @@ void* shadow_client_thread(rdpShadowClient* client)
 	peer->update->SuppressOutput = (pSuppressOutput) shadow_client_suppress_output;
 	peer->update->SurfaceFrameAcknowledge = (pSurfaceFrameAcknowledge) shadow_client_surface_frame_acknowledge;
 
+	if ((!client->StopEvent) || (!client->vcm) || (!subsystem->updateEvent))
+		goto out;
+
+	UpdateSubscriber = shadow_multiclient_get_subscriber(subsystem->updateEvent);
+	if (!UpdateSubscriber)
+		goto out;
+
 	StopEvent = client->StopEvent;
-	UpdateEvent = subsystem->updateEvent;
+	UpdateEvent = shadow_multiclient_getevent(UpdateSubscriber);
 	ClientEvent = peer->GetEventHandle(peer);
 	ChannelEvent = WTSVirtualChannelManagerGetEventHandle(client->vcm);
 
@@ -955,11 +1007,6 @@ void* shadow_client_thread(rdpShadowClient* client)
 
 		if (WaitForSingleObject(StopEvent, 0) == WAIT_OBJECT_0)
 		{
-			if (WaitForSingleObject(UpdateEvent, 0) == WAIT_OBJECT_0)
-			{
-				EnterSynchronizationBarrier(&(subsystem->barrier), 0);
-			}
-
 			break;
 		}
 
@@ -981,9 +1028,11 @@ void* shadow_client_thread(rdpShadowClient* client)
 				shadow_client_send_surface_update(client);
 			}
 
-			EnterSynchronizationBarrier(&(subsystem->barrier), 0);
-
-			while (WaitForSingleObject(UpdateEvent, 0) == WAIT_OBJECT_0);
+			/* 
+			 * The return value of shadow_multiclient_consume is whether or not the subscriber really consumes the event.
+			 * It's not cared currently.
+			 */
+			(void)shadow_multiclient_consume(UpdateSubscriber);
 		}
 
 		if (WaitForSingleObject(ClientEvent, 0) == WAIT_OBJECT_0)
@@ -1016,17 +1065,22 @@ void* shadow_client_thread(rdpShadowClient* client)
 		}
 	}
 
+	if (UpdateSubscriber)
+	{
+		shadow_multiclient_release_subscriber(UpdateSubscriber);
+		UpdateSubscriber = NULL;
+	}
+
+out:
 	peer->Disconnect(peer);
 	
 	freerdp_peer_context_free(peer);
 	freerdp_peer_free(peer);
-
 	ExitThread(0);
-
 	return NULL;
 }
 
-void shadow_client_accepted(freerdp_listener* listener, freerdp_peer* peer)
+BOOL shadow_client_accepted(freerdp_listener* listener, freerdp_peer* peer)
 {
 	rdpShadowClient* client;
 	rdpShadowServer* server;
@@ -1037,10 +1091,18 @@ void shadow_client_accepted(freerdp_listener* listener, freerdp_peer* peer)
 	peer->ContextSize = sizeof(rdpShadowClient);
 	peer->ContextNew = (psPeerContextNew) shadow_client_context_new;
 	peer->ContextFree = (psPeerContextFree) shadow_client_context_free;
-	freerdp_peer_context_new(peer);
+
+	if (!freerdp_peer_context_new(peer))
+		return FALSE;
 
 	client = (rdpShadowClient*) peer->context;
 
-	client->thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
-			shadow_client_thread, client, 0, NULL);
+	if (!(client->thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)
+			shadow_client_thread, client, 0, NULL)))
+	{
+		freerdp_peer_context_free(peer);
+		return FALSE;
+	}
+
+	return TRUE;
 }

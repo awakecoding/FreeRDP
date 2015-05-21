@@ -81,25 +81,41 @@ rdpChannels* freerdp_channels_new(void)
 	rdpChannels* channels;
 
 	channels = (rdpChannels*) calloc(1, sizeof(rdpChannels));
-
 	if (!channels)
 		return NULL;
 
 	channels->queue = MessageQueue_New(NULL);
+	if (!channels->queue)
+		goto error_queue;
 
 	if (!g_OpenHandles)
 	{
 		g_OpenHandles = HashTable_New(TRUE);
-		InitializeCriticalSectionAndSpinCount(&g_channels_lock, 4000);
+		if (!g_OpenHandles)
+			goto error_open_handles;
+
+		if (!InitializeCriticalSectionAndSpinCount(&g_channels_lock, 4000))
+			goto error_open_handles;
 	}
 
 	return channels;
+
+error_open_handles:
+	MessageQueue_Free(channels->queue);
+error_queue:
+	free(channels);
+	return NULL;
 }
 
 void freerdp_channels_free(rdpChannels* channels)
 {
 	int index;
+	int nkeys;
+	ULONG_PTR* pKeys = NULL;
 	CHANNEL_OPEN_DATA* pChannelOpenData;
+
+	if (!channels)
+		return;
 
 	if (channels->queue)
 	{
@@ -116,14 +132,23 @@ void freerdp_channels_free(rdpChannels* channels)
 			free(pChannelOpenData->pInterface);
 			pChannelOpenData->pInterface = NULL;
 		}
+
+		HashTable_Remove(g_OpenHandles, (void*) (UINT_PTR)pChannelOpenData->OpenHandle);
+
 	}
 
 	if (g_OpenHandles)
 	{
-		HashTable_Free(g_OpenHandles);
-		DeleteCriticalSection(&g_channels_lock);
+		nkeys = HashTable_GetKeys(g_OpenHandles, &pKeys);
 
-		g_OpenHandles = NULL;
+		if (nkeys == 0)
+		{
+			HashTable_Free(g_OpenHandles);
+			DeleteCriticalSection(&g_channels_lock);
+			g_OpenHandles = NULL;
+		}
+
+		free(pKeys);
 	}
 
 	free(channels);
@@ -194,7 +219,7 @@ int freerdp_channels_post_connect(rdpChannels* channels, freerdp* instance)
 	int hostnameLength;
 	CHANNEL_CLIENT_DATA* pChannelClientData;
 
-	channels->is_connected = 1;
+	channels->connected = 1;
 	hostname = instance->settings->ServerHostname;
 	hostnameLength = (int) strlen(hostname);
 
@@ -430,7 +455,10 @@ int freerdp_channels_disconnect(rdpChannels* channels, freerdp* instance)
 	CHANNEL_OPEN_DATA* pChannelOpenData;
 	CHANNEL_CLIENT_DATA* pChannelClientData;
 
-	channels->is_connected = 0;
+	if (!channels->connected)
+		return 0;
+
+	channels->connected = 0;
 	freerdp_channels_check_fds(channels, instance);
 
 	/* tell all libraries we are shutting down */
@@ -515,7 +543,7 @@ UINT VCAPITYPE FreeRDP_VirtualChannelInit(LPVOID* ppInitHandle, PCHANNEL_DEF pCh
 	if (!pChannel)
 		return CHANNEL_RC_BAD_CHANNEL;
 
-	if (channels->is_connected)
+	if (channels->connected)
 		return CHANNEL_RC_ALREADY_CONNECTED;
 
 	if (versionRequested != VIRTUAL_CHANNEL_VERSION_WIN2000)
@@ -588,7 +616,7 @@ UINT VCAPITYPE FreeRDP_VirtualChannelOpen(LPVOID pInitHandle, LPDWORD pOpenHandl
 	if (!pChannelOpenEventProc)
 		return CHANNEL_RC_BAD_PROC;
 
-	if (!channels->is_connected)
+	if (!channels->connected)
 		return CHANNEL_RC_NOT_CONNECTED;
 
 	pChannelOpenData = freerdp_channels_find_channel_open_data_by_name(channels, pChannelName);
@@ -640,7 +668,7 @@ UINT VCAPITYPE FreeRDP_VirtualChannelWrite(DWORD openHandle, LPVOID pData, ULONG
 	if (!channels)
 		return CHANNEL_RC_BAD_CHANNEL_HANDLE;
 
-	if (!channels->is_connected)
+	if (!channels->connected)
 		return CHANNEL_RC_NOT_CONNECTED;
 
 	if (!pData)
@@ -684,6 +712,21 @@ UINT VCAPITYPE FreeRDP_VirtualChannelWrite(DWORD openHandle, LPVOID pData, ULONG
 	return CHANNEL_RC_OK;
 }
 
+static BOOL freerdp_channels_is_loaded(rdpChannels* channels, PVIRTUALCHANNELENTRY entry)
+{
+	int i;
+
+	for (i=0; i<channels->clientDataCount; i++)
+	{
+		CHANNEL_CLIENT_DATA* pChannelClientData = &channels->clientDataList[i];
+
+		if (pChannelClientData->entry == entry)
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
 int freerdp_channels_client_load(rdpChannels* channels, rdpSettings* settings, PVIRTUALCHANNELENTRY entry, void* data)
 {
 	int status;
@@ -694,6 +737,12 @@ int freerdp_channels_client_load(rdpChannels* channels, rdpSettings* settings, P
 	{
 		WLog_ERR(TAG,  "error: too many channels");
 		return 1;
+	}
+
+	if (freerdp_channels_is_loaded(channels, entry))
+	{
+		WLog_WARN(TAG, "Skipping, channel already loaded");
+		return 0;
 	}
 
 	pChannelClientData = &channels->clientDataList[channels->clientDataCount];

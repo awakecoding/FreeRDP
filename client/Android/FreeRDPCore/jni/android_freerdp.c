@@ -48,17 +48,22 @@
 #include "jni/prof.h"
 #endif
 
-int android_context_new(freerdp* instance, rdpContext* context)
+BOOL android_context_new(freerdp* instance, rdpContext* context)
 {
-	context->channels = freerdp_channels_new();
+	if (!(context->channels = freerdp_channels_new()))
+		return FALSE;
 	android_event_queue_init(instance);
-	return 0;
+	return TRUE;
 }
 
 void android_context_free(freerdp* instance, rdpContext* context)
 {
-	freerdp_channels_close(instance->context->channels, instance);
-	freerdp_channels_free(context->channels);
+	if (context && context->channels)
+	{
+		freerdp_channels_close(context->channels, instance);
+		freerdp_channels_free(context->channels);
+		context->channels = NULL;
+	}
 	android_event_queue_uninit(instance);
 }
 
@@ -102,32 +107,58 @@ void android_OnChannelDisconnectedEventHandler(rdpContext* context, ChannelDisco
 	}
 }
 
-void android_begin_paint(rdpContext* context)
+BOOL android_begin_paint(rdpContext* context)
 {
 	rdpGdi* gdi = context->gdi;
 	gdi->primary->hdc->hwnd->invalid->null = 1;
 	gdi->primary->hdc->hwnd->ninvalid = 0;
+	return TRUE;
 }
 
-void android_end_paint(rdpContext* context)
+BOOL android_end_paint(rdpContext* context)
 {
+	int i;
+	int ninvalid;
+	HGDI_RGN cinvalid;
+	int x1, y1, x2, y2;
 	androidContext *ctx = (androidContext*)context;
 	rdpSettings* settings = context->instance->settings;
 	
-	DEBUG_ANDROID("ui_update");
-
 	assert(ctx);
 	assert(settings);
 	assert(context->instance);
 
-	DEBUG_ANDROID("width=%d, height=%d, bpp=%d", settings->DesktopWidth,
-			settings->DesktopHeight, settings->ColorDepth);
+	ninvalid = ctx->rdpCtx.gdi->primary->hdc->hwnd->ninvalid;
+	if (ninvalid == 0)
+	{
+		DEBUG_ANDROID("ui_update: ninvalid=%d", ninvalid);
+		return TRUE;
+	}
+
+	cinvalid = ctx->rdpCtx.gdi->primary->hdc->hwnd->cinvalid;
+
+	x1 = cinvalid[0].x;
+	y1 = cinvalid[0].y;
+	x2 = cinvalid[0].x + cinvalid[0].w;
+	y2 = cinvalid[0].y + cinvalid[0].h;
+
+	for (i = 0; i < ninvalid; i++)
+	{
+		x1 = MIN(x1, cinvalid[i].x);
+		y1 = MIN(y1, cinvalid[i].y);
+		x2 = MAX(x2, cinvalid[i].x + cinvalid[i].w);
+		y2 = MAX(y2, cinvalid[i].y + cinvalid[i].h);
+	}
+
+	DEBUG_ANDROID("ui_update: ninvalid=%d x=%d, y=%d, width=%d, height=%d, bpp=%d",
+			ninvalid, x1, y1, x2 - x1, y2 - y1, settings->ColorDepth);
 	
 	freerdp_callback("OnGraphicsUpdate", "(IIIII)V", context->instance,
-		0, 0, settings->DesktopWidth, settings->DesktopHeight);
+		x1, y1, x2 - x1, y2 - y1);
+	return TRUE;
 }
 
-void android_desktop_resize(rdpContext* context)
+BOOL android_desktop_resize(rdpContext* context)
 {
 	DEBUG_ANDROID("ui_desktop_resize");
 
@@ -138,6 +169,7 @@ void android_desktop_resize(rdpContext* context)
 	freerdp_callback("OnGraphicsResize", "(IIII)V",
 			context->instance, context->settings->DesktopWidth,
 			context->settings->DesktopHeight, context->settings->ColorDepth);
+	return TRUE;
 }
 
 BOOL android_pre_connect(freerdp* instance)
@@ -208,7 +240,8 @@ static BOOL android_post_connect(freerdp* instance)
 	else
 		gdi_flags = CLRBUF_16BPP;
 
-	gdi_init(instance, gdi_flags, NULL);
+	if (!gdi_init(instance, gdi_flags, NULL))
+		return FALSE;
 
 	instance->update->BeginPaint = android_begin_paint;
 	instance->update->EndPaint = android_end_paint;
@@ -244,19 +277,13 @@ BOOL android_authenticate(freerdp* instance, char** username, char** password, c
 	if (res == JNI_TRUE)
 	{
 		// read back string values
-		if (*username != NULL)
-			free(*username);
-
+		free(*username);
 		*username = get_string_from_string_builder(env, jstr1);
 
-		if (*domain != NULL)
-			free(*domain);
-
+		free(*domain);
 		*domain = get_string_from_string_builder(env, jstr2);
 
-		if (*password == NULL)
-			free(*password);
-		
+		free(*password);
 		*password = get_string_from_string_builder(env, jstr3);
 	}
 
@@ -307,10 +334,17 @@ static void* jni_input_thread(void* arg)
 														  
 	DEBUG_ANDROID("Start.");
 
-	queue = freerdp_get_message_queue(instance, FREERDP_INPUT_MESSAGE_QUEUE);
-	event[0] = CreateFileDescriptorEvent(NULL, FALSE, FALSE, aCtx->event_queue->pipe_fd[0]);
-	event[1] = CreateFileDescriptorEvent(NULL, FALSE, FALSE, aCtx->event_queue->pipe_fd[1]);
-	event[2] = freerdp_get_message_queue_event_handle(instance, FREERDP_INPUT_MESSAGE_QUEUE);
+	if (!(queue = freerdp_get_message_queue(instance, FREERDP_INPUT_MESSAGE_QUEUE)))
+		goto fail_get_message_queue;
+
+	if (!(event[0] = CreateFileDescriptorEvent(NULL, FALSE, FALSE, aCtx->event_queue->pipe_fd[0])))
+		goto fail_create_event_0;
+
+	if (!(event[1] = CreateFileDescriptorEvent(NULL, FALSE, FALSE, aCtx->event_queue->pipe_fd[1])))
+		goto fail_create_event_1;
+
+	if (!(event[2] = freerdp_get_message_queue_event_handle(instance, FREERDP_INPUT_MESSAGE_QUEUE)))
+		goto fail_get_message_queue_event;
 			
 	do
 	{
@@ -332,8 +366,15 @@ static void* jni_input_thread(void* arg)
 	while(1);
 
 	DEBUG_ANDROID("Quit.");
-	
+
+fail_get_message_queue_event:
+	CloseHandle(event[1]);
+fail_create_event_1:
+	CloseHandle(event[0]);
+fail_create_event_0:
 	MessageQueue_PostQuit(queue, 0);
+fail_get_message_queue:
+
 	ExitThread(0);
 	return NULL;
 }
@@ -384,8 +425,8 @@ static int android_freerdp_run(freerdp* instance)
 
 	const rdpSettings* settings = instance->context->settings;
 
-	HANDLE input_thread;
-	HANDLE channels_thread;
+	HANDLE input_thread = NULL;
+	HANDLE channels_thread = NULL;
 	
 	BOOL async_input = settings->AsyncInput;
 	BOOL async_channels = settings->AsyncChannels;
@@ -407,14 +448,22 @@ static int android_freerdp_run(freerdp* instance)
 
 	if (async_input)
 	{
-		input_thread = CreateThread(NULL, 0,
-				(LPTHREAD_START_ROUTINE) jni_input_thread, instance, 0, NULL);
+		if (!(input_thread = CreateThread(NULL, 0,
+				(LPTHREAD_START_ROUTINE) jni_input_thread, instance, 0, NULL)))
+		{
+			DEBUG_ANDROID("Failed to create async input thread\n");
+			goto disconnect;
+		}
 	}
 	      
 	if (async_channels)
 	{
-		channels_thread = CreateThread(NULL, 0,
-				(LPTHREAD_START_ROUTINE) jni_channels_thread, instance, 0, NULL);
+		if (!(channels_thread = CreateThread(NULL, 0,
+				(LPTHREAD_START_ROUTINE) jni_channels_thread, instance, 0, NULL)))
+		{
+			DEBUG_ANDROID("Failed to create async channels thread\n");
+			goto disconnect;
+		}
 	}
 
 	((androidContext*)instance->context)->is_connected = TRUE;
@@ -536,6 +585,7 @@ static int android_freerdp_run(freerdp* instance)
 		}
 	}
 
+disconnect:
 	DEBUG_ANDROID("Prepare shutdown...");
 
 	// issue another OnDisconnecting here in case the disconnect was initiated by the server and not our client
@@ -546,17 +596,20 @@ static int android_freerdp_run(freerdp* instance)
 
 	DEBUG_ANDROID("Cleanup threads...");
 
-	if (async_channels)
+	if (async_channels && channels_thread)
 	{
 		WaitForSingleObject(channels_thread, INFINITE);
 		CloseHandle(channels_thread);
 	}
  
-	if (async_input)
+	if (async_input && input_thread)
 	{
 		wMessageQueue* input_queue = freerdp_get_message_queue(instance, FREERDP_INPUT_MESSAGE_QUEUE);
-		MessageQueue_PostQuit(input_queue, 0);
-		WaitForSingleObject(input_thread, INFINITE);
+		if (input_queue)
+		{
+			MessageQueue_PostQuit(input_queue, 0);
+			WaitForSingleObject(input_thread, INFINITE);
+		}
 		CloseHandle(input_thread);
 	}
 
@@ -595,7 +648,8 @@ JNIEXPORT jint JNICALL jni_freerdp_new(JNIEnv *env, jclass cls)
 #endif
 
 	// create instance
-	instance = freerdp_new();
+	if (!(instance = freerdp_new()))
+		return NULL;
 	instance->PreConnect = android_pre_connect;
 	instance->PostConnect = android_post_connect;
 	instance->PostDisconnect = android_post_disconnect;
@@ -607,7 +661,12 @@ JNIEXPORT jint JNICALL jni_freerdp_new(JNIEnv *env, jclass cls)
 	instance->ContextSize = sizeof(androidContext);
 	instance->ContextNew = android_context_new;
 	instance->ContextFree = android_context_free;
-	freerdp_context_new(instance);
+
+	if (!freerdp_context_new(instance))
+	{
+		freerdp_free(instance);
+		instance = NULL;
+	}
 
 	return (jint) instance;
 }
@@ -632,8 +691,11 @@ JNIEXPORT jboolean JNICALL jni_freerdp_connect(JNIEnv *env, jclass cls, jint ins
 	assert(inst);
 	assert(ctx);
 
-	ctx->thread = CreateThread(NULL, 0,
-			(LPTHREAD_START_ROUTINE)android_thread_func, inst, 0, NULL);
+	if (!(ctx->thread = CreateThread(NULL, 0,
+			(LPTHREAD_START_ROUTINE)android_thread_func, inst, 0, NULL)))
+	{
+		return JNI_FALSE;
+	}
 
 	return JNI_TRUE;
 }

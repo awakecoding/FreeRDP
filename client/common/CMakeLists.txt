@@ -44,7 +44,7 @@ endif()
 
 # On windows create dll version information.
 # Vendor, product and year are already set in top level CMakeLists.txt
-if (WIN32)
+if (WIN32 AND BUILD_SHARED_LIBS)
   set (RC_VERSION_MAJOR ${FREERDP_VERSION_MAJOR})
   set (RC_VERSION_MINOR ${FREERDP_VERSION_MINOR})
   set (RC_VERSION_BUILD ${FREERDP_VERSION_REVISION})
@@ -76,7 +76,11 @@ set(${MODULE_PREFIX}_LIBS ${${MODULE_PREFIX}_LIBS}
 	
 set(${MODULE_PREFIX}_LIBS ${${MODULE_PREFIX}_LIBS} winpr freerdp)
 
-target_link_libraries(${MODULE_NAME} ${${MODULE_PREFIX}_LIBS})
+if(OPENBSD)
+	target_link_libraries(${MODULE_NAME} ${${MODULE_PREFIX}_LIBS} ossaudio)
+else()
+	target_link_libraries(${MODULE_NAME} ${${MODULE_PREFIX}_LIBS})
+endif()
 
 install(TARGETS ${MODULE_NAME} DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT libraries EXPORT FreeRDPTargets)
 

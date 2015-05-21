@@ -77,7 +77,7 @@
 #define FDServer					0x00000002
 #define FDOutProxy					0x00000003
 
-BOOL rts_connect(rdpRpc* rpc);
+void rts_generate_cookie(BYTE* cookie);
 
 int rts_command_length(rdpRpc* rpc, UINT32 CommandType, BYTE* buffer, UINT32 length);
 int rts_recv_pdu_commands(rdpRpc* rpc, rpcconn_rts_hdr_t* rts);
@@ -134,6 +134,8 @@ int rts_recv_CONN_A3_pdu(rdpRpc* rpc, BYTE* buffer, UINT32 length);
 int rts_send_CONN_B1_pdu(rdpRpc* rpc);
 
 int rts_recv_CONN_C2_pdu(rdpRpc* rpc, BYTE* buffer, UINT32 length);
+
+int rts_send_OUT_R1_A3_pdu(rdpRpc* rpc);
 
 int rts_send_keep_alive_pdu(rdpRpc* rpc);
 int rts_send_flow_control_ack_pdu(rdpRpc* rpc);

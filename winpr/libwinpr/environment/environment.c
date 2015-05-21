@@ -230,6 +230,8 @@ LPCH GetEnvironmentStrings(VOID)
 
 	cchEnvironmentBlock = 128;
 	lpszEnvironmentBlock = (LPCH) malloc(cchEnvironmentBlock * sizeof(CHAR));
+	if (!lpszEnvironmentBlock)
+		return NULL;
 
 	while (*envp)
 	{
@@ -237,8 +239,19 @@ LPCH GetEnvironmentStrings(VOID)
 
 		while ((offset + length + 8) > cchEnvironmentBlock)
 		{
-			cchEnvironmentBlock *= 2;
-			lpszEnvironmentBlock = (LPCH) realloc(lpszEnvironmentBlock, cchEnvironmentBlock * sizeof(CHAR));
+			DWORD new_size;
+			LPCH new_blk;
+
+			new_size = cchEnvironmentBlock * 2;
+			new_blk = (LPCH) realloc(lpszEnvironmentBlock, new_size * sizeof(CHAR));
+			if (!new_blk)
+			{
+				free(lpszEnvironmentBlock);
+				return NULL;
+			}
+
+			lpszEnvironmentBlock = new_blk;
+			cchEnvironmentBlock = new_size;
 		}
 
 		p = &(lpszEnvironmentBlock[offset]);
@@ -282,8 +295,7 @@ DWORD ExpandEnvironmentStringsW(LPCWSTR lpSrc, LPWSTR lpDst, DWORD nSize)
 
 BOOL FreeEnvironmentStringsA(LPCH lpszEnvironmentBlock)
 {
-	if (lpszEnvironmentBlock)
-		free(lpszEnvironmentBlock);
+	free(lpszEnvironmentBlock);
 
 	return TRUE;
 }
@@ -327,11 +339,17 @@ LPCH MergeEnvironmentStrings(PCSTR original, PCSTR merge)
 
 		if (mergeStringLength == mergeArraySize)
 		{
-			mergeArraySize += 128;
-			mergeStrings = (const char**) realloc((void*) mergeStrings, mergeArraySize * sizeof(char*));
+			const char** new_str;
 
-			if (!mergeStrings)
+			mergeArraySize += 128;
+			new_str = (const char**) realloc((void*) mergeStrings, mergeArraySize * sizeof(char*));
+
+			if (!new_str)
+			{
+				free(mergeStrings);
 				return NULL;
+			}
+			mergeStrings = new_str;
 		}
 
 		mergeStrings[mergeStringLength] = cp;
@@ -405,8 +423,7 @@ LPCH MergeEnvironmentStrings(PCSTR original, PCSTR merge)
 
 						if (!tmp)
 						{
-							if (lpszEnvironmentBlock)
-								free(lpszEnvironmentBlock);
+							free(lpszEnvironmentBlock);
 							free (mergeStrings);
 							return NULL;
 						}
@@ -449,8 +466,7 @@ LPCH MergeEnvironmentStrings(PCSTR original, PCSTR merge)
 
 			if (!tmp)
 			{
-				if (lpszEnvironmentBlock)
-					free(lpszEnvironmentBlock);
+				free(lpszEnvironmentBlock);
 				free (mergeStrings);
 				return NULL;
 			}
@@ -565,9 +581,7 @@ BOOL SetEnvironmentVariableEBA(LPSTR* envBlock, LPCSTR lpName, LPCSTR lpValue)
 	newEB = MergeEnvironmentStrings((LPCSTR) *envBlock, envstr);
 
 	free(envstr);
-
-	if (*envBlock)
-		free(*envBlock);
+	free(*envBlock);
 
 	*envBlock = newEB;
 

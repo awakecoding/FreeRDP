@@ -23,6 +23,7 @@
 
 #include <freerdp/codec/color.h>
 #include <freerdp/codec/region.h>
+#include <freerdp/log.h>
 
 #include "../shadow_screen.h"
 #include "../shadow_client.h"
@@ -30,8 +31,12 @@
 #include "../shadow_capture.h"
 #include "../shadow_encoder.h"
 #include "../shadow_subsystem.h"
+#include "../shadow_mcevent.h"
 
 #include "mac_shadow.h"
+
+#define TAG SERVER_TAG("shadow.mac")
+
 
 static macShadowSubsystem* g_Subsystem = NULL;
 
@@ -362,13 +367,7 @@ void (^mac_capture_stream_handler)(CGDisplayStreamFrameStatus, uint64_t, IOSurfa
 			
 		count = ArrayList_Count(server->clients);
 			
-		InitializeSynchronizationBarrier(&(subsystem->barrier), count + 1, -1);
-			
-		SetEvent(subsystem->updateEvent);
-			
-		EnterSynchronizationBarrier(&(subsystem->barrier), 0);
-		
-		DeleteSynchronizationBarrier(&(subsystem->barrier));
+		shadow_multiclient_publish_and_wait(subsystem->updateEvent);
 		
 		if (count == 1)
 		{
@@ -382,8 +381,6 @@ void (^mac_capture_stream_handler)(CGDisplayStreamFrameStatus, uint64_t, IOSurfa
 			}
 		}
 		
-		ResetEvent(subsystem->updateEvent);
-			
 		ArrayList_Unlock(server->clients);
 			
 		region16_clear(&(subsystem->invalidRegion));
@@ -616,9 +613,13 @@ int mac_shadow_subsystem_start(macShadowSubsystem* subsystem)
 
 	mac_shadow_capture_start(subsystem);
 	
-	thread = CreateThread(NULL, 0,
+	if (!(thread = CreateThread(NULL, 0,
 			(LPTHREAD_START_ROUTINE) mac_shadow_subsystem_thread,
-			(void*) subsystem, 0, NULL);
+			(void*) subsystem, 0, NULL)))
+	{
+		WLog_ERR(TAG, "Failed to create thread");
+		return -1;
+	}
 
 	return 1;
 }

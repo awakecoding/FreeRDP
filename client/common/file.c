@@ -308,8 +308,15 @@ void freerdp_client_add_option(rdpFile* file, char* option)
 {
 	while ((file->argc + 1) > file->argSize)
 	{
-		file->argSize *= 2;
-		file->argv = (char**) realloc(file->argv, file->argSize * sizeof(char*));
+		int new_size;
+		char **new_argv;
+
+		new_size = file->argSize * 2;
+		new_argv = (char**) realloc(file->argv, new_size * sizeof(char*));
+		if (!new_argv)
+			return;
+		file->argv = new_argv;
+		file->argSize = new_size;
 	}
 
 	file->argv[file->argc] = _strdup(option);
@@ -323,8 +330,15 @@ int freerdp_client_parse_rdp_file_add_line(rdpFile* file, char* line, int index)
 
 	while ((file->lineCount + 1) > file->lineSize)
 	{
-		file->lineSize *= 2;
-		file->lines = (rdpFileLine*) realloc(file->lines, file->lineSize * sizeof(rdpFileLine));
+		int new_size;
+		rdpFileLine *new_line;
+
+		new_size = file->lineSize * 2;
+		new_line = (rdpFileLine*) realloc(file->lines, new_size * sizeof(rdpFileLine));
+		if (!new_line)
+			return -1;
+		file->lines = new_line;
+		file->lineSize = new_size;
 	}
 
 	ZeroMemory(&(file->lines[file->lineCount]), sizeof(rdpFileLine));
@@ -704,8 +718,7 @@ BOOL freerdp_client_write_rdp_file(const rdpFile* file, const char* name, BOOL u
 		status = fclose(fp);
 	}
 
-	if (buffer)
-		free(buffer);
+	free(buffer);
 
 	return (status == 0) ? TRUE : FALSE;
 }
@@ -763,11 +776,8 @@ BOOL freerdp_client_populate_settings_from_rdp_file(rdpFile* file, rdpSettings* 
 		if (domain)
 			freerdp_set_param_string(settings, FreeRDP_Domain, domain);
 
-		if (user)
-			free(user);
-
-		if (domain)
-			free(domain);
+		free(user);
+		free(domain);
 	}
 
 	if (~((size_t) file->FullAddress))
@@ -1026,7 +1036,7 @@ BOOL freerdp_client_populate_settings_from_rdp_file(rdpFile* file, rdpSettings* 
 		char* ConnectionFile = settings->ConnectionFile;
 
 		settings->ConnectionFile = NULL;
-		freerdp_client_settings_parse_command_line(settings, file->argc, file->argv);
+		freerdp_client_settings_parse_command_line(settings, file->argc, file->argv, FALSE);
 		settings->ConnectionFile = ConnectionFile;
 	}
 

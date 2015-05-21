@@ -337,19 +337,33 @@ PCSC_SCARDCONTEXT* PCSC_EstablishCardContext(SCARDCONTEXT hContext)
 		return NULL;
 
 	pContext->hContext = hContext;
-	InitializeCriticalSectionAndSpinCount(&(pContext->lock), 4000);
+	if (!InitializeCriticalSectionAndSpinCount(&(pContext->lock), 4000))
+		goto error_spinlock;
 
 	if (!g_CardContexts)
+	{
 		g_CardContexts = ListDictionary_New(TRUE);
+		if (!g_CardContexts)
+			goto errors;
+	}
 
 	if (!g_Readers)
 	{
 		g_Readers = ArrayList_New(TRUE);
+		if (!g_Readers)
+			goto errors;
 		ArrayList_Object(g_Readers)->fnObjectFree = (OBJECT_FREE_FN) PCSC_ReaderAliasFree;
 	}
 
-	ListDictionary_Add(g_CardContexts, (void*) hContext, (void*) pContext);
+	if (!ListDictionary_Add(g_CardContexts, (void*) hContext, (void*) pContext))
+		goto errors;
 	return pContext;
+
+errors:
+	DeleteCriticalSection(&(pContext->lock));
+error_spinlock:
+	free(pContext);
+	return NULL;
 }
 
 void PCSC_ReleaseCardContext(SCARDCONTEXT hContext)
@@ -552,20 +566,28 @@ PCSC_SCARDHANDLE* PCSC_ConnectCardHandle(SCARDCONTEXT hSharedContext, SCARDCONTE
 	}
 
 	pCard = (PCSC_SCARDHANDLE*) calloc(1, sizeof(PCSC_SCARDHANDLE));
-
 	if (!pCard)
 		return NULL;
 
 	pCard->hSharedContext = hSharedContext;
 	pCard->hPrivateContext = hPrivateContext;
-	pContext->dwCardHandleCount++;
 
 	if (!g_CardHandles)
+	{
 		g_CardHandles = ListDictionary_New(TRUE);
+		if (!g_CardHandles)
+			goto error;
+	}
 
-	ListDictionary_Add(g_CardHandles, (void*) hCard, (void*) pCard);
+	if (!ListDictionary_Add(g_CardHandles, (void*) hCard, (void*) pCard))
+		goto error;
 
+	pContext->dwCardHandleCount++;
 	return pCard;
+
+error:
+	free(pCard);
+	return NULL;
 }
 
 void PCSC_DisconnectCardHandle(SCARDHANDLE hCard)
@@ -628,14 +650,29 @@ BOOL PCSC_AddReaderNameAlias(char* namePCSC, char* nameWinSCard)
 		return TRUE;
 
 	reader = (PCSC_READER*) calloc(1, sizeof(PCSC_READER));
-
 	if (!reader)
-		return FALSE;
+		goto error_reader;
 
 	reader->namePCSC = _strdup(namePCSC);
+	if (!reader->namePCSC)
+		goto error_namePSC;
+
 	reader->nameWinSCard = _strdup(nameWinSCard);
-	ArrayList_Add(g_Readers, reader);
+	if (!reader->nameWinSCard)
+		goto error_nameWinSCard;
+	if (ArrayList_Add(g_Readers, reader) < 0)
+		goto error_add;
 	return TRUE;
+
+error_add:
+	free(reader->nameWinSCard);
+error_nameWinSCard:
+	free(reader->namePCSC);
+error_namePSC:
+	free(reader);
+error_reader:
+	return FALSE;
+
 }
 
 static int PCSC_AtoiWithLength(const char* str, int length)
@@ -707,7 +744,8 @@ char* PCSC_ConvertReaderNameToWinSCard(const char* name)
 	 */
 	if (!name)
 		return NULL;
-		
+	memset(tokens, 0, sizeof(tokens));
+	
 	length = strlen(name);
 
 	if (length < 10)
@@ -753,7 +791,7 @@ char* PCSC_ConvertReaderNameToWinSCard(const char* name)
 	if ((index < 0) || (slot < 0))
 		return NULL;
 
-	if (*(tokens[ctoken][1] - 1) == ')')
+	if (tokens[ctoken] && tokens[ctoken][1] && *(tokens[ctoken][1] - 1) == ')')
 	{
 		while ((*(tokens[ctoken][0]) != '(') && (ctoken > 0))
 			ctoken--;
@@ -889,12 +927,16 @@ char* PCSC_ConvertReaderNamesToPCSC(const char* names, LPDWORD pcchReaders)
 	return namesPCSC;
 }
 
-void PCSC_AddMemoryBlock(SCARDCONTEXT hContext, void* pvMem)
+BOOL PCSC_AddMemoryBlock(SCARDCONTEXT hContext, void* pvMem)
 {
 	if (!g_MemoryBlocks)
+	{
 		g_MemoryBlocks = ListDictionary_New(TRUE);
+		if (!g_MemoryBlocks)
+			return FALSE;
+	}
 
-	ListDictionary_Add(g_MemoryBlocks, pvMem, (void*) hContext);
+	return ListDictionary_Add(g_MemoryBlocks, pvMem, (void*) hContext);
 }
 
 void* PCSC_RemoveMemoryBlock(SCARDCONTEXT hContext, void* pvMem)
@@ -913,7 +955,11 @@ void* PCSC_SCardAllocMemory(SCARDCONTEXT hContext, size_t size)
 	if (!pvMem)
 		return NULL;
 
-	PCSC_AddMemoryBlock(hContext, pvMem);
+	if (!PCSC_AddMemoryBlock(hContext, pvMem))
+	{
+		free(pvMem);
+		return NULL;
+	}
 	return pvMem;
 }
 
@@ -1397,8 +1443,14 @@ WINSCARDAPI HANDLE WINAPI PCSC_SCardAccessStartedEvent(void)
 
 	if (!g_StartedEvent)
 	{
-		g_StartedEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-		SetEvent(g_StartedEvent);
+		if (!(g_StartedEvent = CreateEvent(NULL, TRUE, FALSE, NULL)))
+			return NULL;
+
+		if (!SetEvent(g_StartedEvent))
+		{
+			CloseHandle(g_StartedEvent);
+			return NULL;
+		}
 	}
 
 	g_StartedEventRefCount++;
@@ -2178,7 +2230,7 @@ WINSCARDAPI LONG WINAPI PCSC_SCardTransmit(SCARDHANDLE hCard,
 	}
 
 	status = (LONG) g_PCSC.pfnSCardTransmit(hCard, pcsc_pioSendPci, pbSendBuffer,
-											pcsc_cbSendLength, pcsc_pioRecvPci, pbRecvBuffer, &pcsc_cbRecvLength);
+				pcsc_cbSendLength, pcsc_pioRecvPci, pbRecvBuffer, &pcsc_cbRecvLength);
 	status = PCSC_MapErrorCodeToWinSCard(status);
 	*pcbRecvLength = (DWORD) pcsc_cbRecvLength;
 
@@ -2186,7 +2238,13 @@ WINSCARDAPI LONG WINAPI PCSC_SCardTransmit(SCARDHANDLE hCard,
 		free(pcsc_pioSendPci); /* pcsc_pioSendPci is dynamically allocated only when pioSendPci is non null */
 
 	if (pioRecvPci)
+	{
+		cbExtraBytes = pioRecvPci->cbPciLength - sizeof(SCARD_IO_REQUEST);
+		pbExtraBytes = &((BYTE*) pioRecvPci)[sizeof(SCARD_IO_REQUEST)];
+		pcsc_pbExtraBytes = &((BYTE*) pcsc_pioRecvPci)[sizeof(PCSC_SCARD_IO_REQUEST)];
+		CopyMemory(pbExtraBytes, pcsc_pbExtraBytes, cbExtraBytes); /* copy extra bytes */
 		free(pcsc_pioRecvPci); /* pcsc_pioRecvPci is dynamically allocated only when pioRecvPci is non null */
+	}
 
 	return status;
 }
@@ -2352,7 +2410,7 @@ WINSCARDAPI LONG WINAPI PCSC_SCardGetAttrib_Internal(SCARDHANDLE hCard, DWORD dw
 WINSCARDAPI LONG WINAPI PCSC_SCardGetAttrib_FriendlyName(SCARDHANDLE hCard, DWORD dwAttrId, LPBYTE pbAttr, LPDWORD pcbAttrLen)
 {
 	int length = 0;
-	char* namePCSC;
+	char* namePCSC = NULL;
 	char* nameWinSCard;
 	DWORD cbAttrLen = 0;
 	char* pbAttrA = NULL;
@@ -2408,6 +2466,7 @@ WINSCARDAPI LONG WINAPI PCSC_SCardGetAttrib_FriendlyName(SCARDHANDLE hCard, DWOR
 	else
 	{
 		friendlyNameA = namePCSC;
+		namePCSC = NULL;
 	}
 
 	if (dwAttrId == SCARD_ATTR_DEVICE_FRIENDLY_NAME_W)
@@ -2775,9 +2834,16 @@ unsigned int determineMacOSXVersion()
 
     mib[0] = CTL_KERN;
     mib[1] = KERN_OSRELEASE;
-    sysctl(mib, 2, NULL, &len, NULL, 0);
+    if (sysctl(mib, 2, NULL, &len, NULL, 0) != 0)
+      return 0;
     kernelVersion = calloc(len, sizeof(char));
-    sysctl(mib, 2, kernelVersion, &len, NULL, 0);
+    if (!kernelVersion)
+      return 0;
+    if (sysctl(mib, 2, kernelVersion, &len, NULL, 0) != 0)
+    {
+      free(kernelVersion);
+      return 0;
+    }
 
     tok = strtok(kernelVersion,".");
     while (tok)
@@ -2949,6 +3015,8 @@ int PCSC_InitializeSCardApi(void)
 	if (nSize)
 	{
 		env = (LPSTR) malloc(nSize);
+		if (!env)
+			return -1;
 		nSize = GetEnvironmentVariableA("WINPR_WINSCARD_LOCK_TRANSACTIONS", env, nSize);
 
 		if (strcmp(env, "1") == 0)
@@ -2965,6 +3033,8 @@ int PCSC_InitializeSCardApi(void)
 #ifdef __MACOSX__
 	g_PCSCModule = LoadLibraryA("/System/Library/Frameworks/PCSC.framework/PCSC");
 	OSXVersion = determineMacOSXVersion();
+	if (OSXVersion == 0)
+		return -1;
 #else
 	g_PCSCModule = LoadLibraryA("libpcsclite.so.1");
 

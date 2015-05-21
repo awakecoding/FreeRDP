@@ -1498,7 +1498,9 @@ static UINT64 freerdp_windows_gmtime()
 	UINT64 windows_time;
 
 	time(&unix_time);
-	windows_time = ((UINT64) unix_time * 10000000) + 621355968000000000ULL;
+	windows_time = unix_time;
+	windows_time *= 10000000;
+	windows_time += 621355968000000000ULL;
 
 	return windows_time;
 }
@@ -1521,8 +1523,11 @@ char* freerdp_get_unix_timezone_identifier()
 		return tzid;
 	}
 
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+	fp = fopen("/var/db/zoneinfo", "r");
+#else
 	fp = fopen("/etc/timezone", "r");
-
+#endif
 	if (fp != NULL)
 	{
 		fseek(fp, 0, SEEK_END);
@@ -1677,9 +1682,11 @@ void freerdp_time_zone_detect(TIME_ZONE_INFO* clientTimeZone)
 	local_time = localtime(&t);
 
 #ifdef HAVE_TM_GMTOFF
-	#if defined(__FreeBSD__)
-		/*not the best solution, but could not get the right tyepcast*/
-		clientTimeZone->bias = 0;
+	#if defined(__FreeBSD__) || defined(__OpenBSD__)
+		if (local_time->tm_gmtoff >= 0)
+			clientTimeZone->bias = (UINT32) (local_time->tm_gmtoff / 60);
+		else
+			clientTimeZone->bias = (UINT32) (1440 + (INT32) (local_time->tm_gmtoff / 60));
 	#else
 		clientTimeZone->bias = timezone / 60;
 	#endif

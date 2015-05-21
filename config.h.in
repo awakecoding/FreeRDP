@@ -28,9 +28,12 @@
 #cmakedefine HAVE_TM_GMTOFF
 #cmakedefine HAVE_AIO_H
 #cmakedefine HAVE_POLL_H
-#cmakedefine HAVE_PTHREAD_GNU_EXT
+#cmakedefine HAVE_PTHREAD_MUTEX_TIMEDLOCK
 #cmakedefine HAVE_VALGRIND_MEMCHECK_H
 #cmakedefine HAVE_EXECINFO_H
+
+/* Features */
+#cmakedefine HAVE_ALIGNED_REQUIRED
 
 /* Options */
 #cmakedefine WITH_PROFILER
@@ -42,12 +45,15 @@
 #cmakedefine WITH_JPEG
 #cmakedefine WITH_WIN8
 #cmakedefine WITH_RDPSND_DSOUND
+#cmakedefine WITH_EVENTFD_READ_WRITE
+#cmakedefine HAVE_MATH_C99_LONG_DOUBLE
 
 #cmakedefine WITH_FFMPEG
 #cmakedefine WITH_GSTREAMER_1_0
 #cmakedefine WITH_GSTREAMER_0_10
 #cmakedefine WITH_WINMM
 #cmakedefine WITH_MACAUDIO
+#cmakedefine WITH_OSS
 #cmakedefine WITH_ALSA
 #cmakedefine WITH_PULSE
 #cmakedefine WITH_IOSAUDIO
@@ -84,6 +90,7 @@
 #cmakedefine WITH_DEBUG_RDPEI
 #cmakedefine WITH_DEBUG_TIMEZONE
 #cmakedefine WITH_DEBUG_THREADS
+#cmakedefine WITH_DEBUG_MUTEX
 #cmakedefine WITH_DEBUG_TRANSPORT
 #cmakedefine WITH_DEBUG_WND
 #cmakedefine WITH_DEBUG_X11
@@ -91,4 +98,5 @@
 #cmakedefine WITH_DEBUG_X11_LOCAL_MOVESIZE
 #cmakedefine WITH_DEBUG_XV
 #cmakedefine WITH_DEBUG_ANDROID_JNI
+#cmakedefine WITH_DEBUG_RINGBUFFER
 #endif

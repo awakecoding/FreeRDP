@@ -21,6 +21,7 @@ set(${MODULE_PREFIX}_COLLECTIONS_SRCS
 	collections/Queue.c
 	collections/Stack.c
 	collections/PubSub.c
+	collections/BipBuffer.c
 	collections/BitStream.c
 	collections/Reference.c
 	collections/ArrayList.c
@@ -85,6 +86,7 @@ set(${MODULE_PREFIX}_SRCS
 	print.c
 	stream.c
 	debug.c
+	winpr.c
 	cmdline.c
 	ssl.c)
 
@@ -111,6 +113,10 @@ winpr_library_add(
 
 if(UNIX)
 	winpr_library_add(m)
+endif()
+
+if(BSD)
+	winpr_library_add(execinfo)
 endif()
 
 if(WIN32)

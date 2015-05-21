@@ -399,6 +399,7 @@ struct rdp_monitor
 	INT32 width;
 	INT32 height;
 	UINT32 is_primary;
+	UINT32 orig_screen;
 };
 typedef struct rdp_monitor rdpMonitor;
 
@@ -615,6 +616,7 @@ typedef struct _RDPDR_PARALLEL RDPDR_PARALLEL;
 #define FreeRDP_AuthenticationServiceClass 			1098
 #define FreeRDP_DisableCredentialsDelegation 			1099
 #define FreeRDP_AuthenticationLevel				1100
+#define FreeRDP_AllowedTlsCiphers				1101
 #define FreeRDP_MstscCookieMode					1152
 #define FreeRDP_CookieMaxLength					1153
 #define FreeRDP_PreconnectionId					1154
@@ -690,6 +692,9 @@ typedef struct _RDPDR_PARALLEL RDPDR_PARALLEL;
 #define FreeRDP_GatewayUseSameCredentials			1991
 #define FreeRDP_GatewayEnabled					1992
 #define FreeRDP_GatewayBypassLocal				1993
+#define FreeRDP_GatewayRpcTransport				1994
+#define FreeRDP_GatewayHttpTransport				1995
+#define FreeRDP_GatewayUdpTransport				1996
 #define FreeRDP_RemoteApplicationMode				2112
 #define FreeRDP_RemoteApplicationName				2113
 #define FreeRDP_RemoteApplicationIcon				2114
@@ -896,7 +901,10 @@ struct rdp_settings
 	ALIGN64 BOOL ListMonitors; /* 392 */
 	ALIGN64 UINT32* MonitorIds; /* 393 */
 	ALIGN64 UINT32 NumMonitorIds; /* 394 */
-	UINT64 padding0448[448 - 395]; /* 395 */
+	ALIGN64 UINT32 MonitorLocalShiftX; /*395 */
+	ALIGN64 UINT32 MonitorLocalShiftY; /* 396 */
+	UINT64 padding0448[448 - 397]; /* 397 */
+
 
 	/* Client Message Channel Data */
 	UINT64 padding0512[512 - 448]; /* 448 */
@@ -998,7 +1006,7 @@ struct rdp_settings
 	ALIGN64 char* AuthenticationServiceClass; /* 1098 */
 	ALIGN64 BOOL DisableCredentialsDelegation; /* 1099 */
 	ALIGN64 BOOL AuthenticationLevel; /* 1100 */
-	ALIGN64 char* PermittedTLSCiphers; /* 1101 */
+	ALIGN64 char* AllowedTlsCiphers; /* 1101 */
 	UINT64 padding1152[1152 - 1102]; /* 1102 */
 
 	/* Connection Cookie */
@@ -1024,7 +1032,8 @@ struct rdp_settings
 	ALIGN64 UINT32 RedirectionTsvUrlLength; /* 1227 */
 	ALIGN64 UINT32 TargetNetAddressCount; /* 1228 */
 	ALIGN64 char** TargetNetAddresses; /* 1229 */
-	UINT64 padding1280[1280 - 1230]; /* 1230 */
+	ALIGN64 UINT32* TargetNetPorts; /* 1230 */
+	UINT64 padding1280[1280 - 1231]; /* 1231 */
 
 	/**
 	 * Security
@@ -1124,7 +1133,10 @@ struct rdp_settings
 	ALIGN64 BOOL GatewayUseSameCredentials; /* 1991 */
 	ALIGN64 BOOL GatewayEnabled; /* 1992 */
 	ALIGN64 BOOL GatewayBypassLocal; /* 1993 */
-	UINT64 padding2048[2048 - 1994]; /* 1994 */
+	ALIGN64 BOOL GatewayRpcTransport; /* 1994 */
+	ALIGN64 BOOL GatewayHttpTransport; /* 1995 */
+	ALIGN64 BOOL GatewayUdpTransport; /* 1996 */
+	UINT64 padding2048[2048 - 1997]; /* 1997 */
 	UINT64 padding2112[2112 - 2048]; /* 2048 */
 
 	/**

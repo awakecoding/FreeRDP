@@ -55,7 +55,7 @@ BOOL _comm_set_permissive(HANDLE hDevice, BOOL permissive)
 }
 
 
-/* Computes VMIN in deciseconds from Ti in milliseconds */
+/* Computes VTIME in deciseconds from Ti in milliseconds */
 static UCHAR _vtime(ULONG Ti)
 {
 	/* FIXME: look for an equivalent math function otherwise let
@@ -144,13 +144,13 @@ BOOL CommReadFile(HANDLE hDevice, LPVOID lpBuffer, DWORD nNumberOfBytesToRead,
 	 * http://msdn.microsoft.com/en-us/library/windows/hardware/hh439614%28v=vs.85%29.aspx
 	 *
 	 * ReadIntervalTimeout  | ReadTotalTimeoutMultiplier | ReadTotalTimeoutConstant | VMIN | VTIME | TMAX  |
-	 *         0            |            0               |           0              |   N  |   0   |   0   | Blocks for N bytes available.
-         *   0< Ti <MAXULONG    |            0               |           0              |   N  |   Ti  |   0   | Block on first byte, then use Ti between bytes.
+	 *         0            |            0               |           0              |   N  |   0   | INDEF | Blocks for N bytes available.
+         *   0< Ti <MAXULONG    |            0               |           0              |   N  |   Ti  | INDEF | Blocks on first byte, then use Ti between bytes.
 	 *       MAXULONG       |            0               |           0              |   0  |   0   |   0   | Returns immediately with bytes available (don't block)
 	 *       MAXULONG       |         MAXULONG           |      0< Tc <MAXULONG     |   N  |   0   |   Tc  | Blocks on first byte during Tc or returns immediately whith bytes available
 	 *       MAXULONG       |            m               |        MAXULONG          |                      | Invalid
-	 *         0            |            m               |      0< Tc <MAXULONG     |   N  |   0   |  Tmax | Block on first byte during Tmax or returns immediately whith bytes available
-	 *   0< Ti <MAXULONG    |            m               |      0< Tc <MAXULONG     |   N  |   Ti  |  Tmax | Block on first byte, then use Ti between bytes. Tmax is use for the whole system call.
+	 *         0            |            m               |      0< Tc <MAXULONG     |   N  |   0   |  Tmax | Blocks on first byte during Tmax or returns immediately whith bytes available
+	 *   0< Ti <MAXULONG    |            m               |      0< Tc <MAXULONG     |   N  |   Ti  |  Tmax | Blocks on first byte, then use Ti between bytes. Tmax is used for the whole system call.
 	 */
 
 	/* NB: timeouts are in milliseconds, VTIME are in deciseconds and is an unsigned char */
@@ -195,6 +195,8 @@ BOOL CommReadFile(HANDLE hDevice, LPVOID lpBuffer, DWORD nNumberOfBytesToRead,
 
 	/* TMAX */
 
+        pTmaxTimeout = &tmaxTimeout;
+
 	if ((pTimeouts->ReadIntervalTimeout == MAXULONG) && (pTimeouts->ReadTotalTimeoutMultiplier == MAXULONG))
 	{
 		/* Tc */
@@ -204,6 +206,10 @@ BOOL CommReadFile(HANDLE hDevice, LPVOID lpBuffer, DWORD nNumberOfBytesToRead,
 	{
 		/* Tmax */
 		Tmax = nNumberOfBytesToRead * pTimeouts->ReadTotalTimeoutMultiplier + pTimeouts->ReadTotalTimeoutConstant;
+
+		/* INDEFinitely */
+		if((Tmax == 0) && (pTimeouts->ReadIntervalTimeout < MAXULONG) && (pTimeouts->ReadTotalTimeoutMultiplier == 0))
+			pTmaxTimeout = NULL;
 	}
 
 	if ((currentTermios.c_cc[VMIN] != vmin) || (currentTermios.c_cc[VTIME] != vtime))
@@ -219,15 +225,16 @@ BOOL CommReadFile(HANDLE hDevice, LPVOID lpBuffer, DWORD nNumberOfBytesToRead,
 		}
 	}
 
-	pTmaxTimeout = NULL; /* no timeout if Tmax == 0 */
-	if (Tmax > 0)
+        /* wait indefinitely if pTmaxTimeout is NULL */
+
+	if(pTmaxTimeout != NULL) 
 	{
-		ZeroMemory(&tmaxTimeout, sizeof(struct timeval));
-
-		tmaxTimeout.tv_sec = Tmax / 1000; /* s */
-		tmaxTimeout.tv_usec = (Tmax % 1000) * 1000; /* us */
-
-		pTmaxTimeout = &tmaxTimeout;
+	    ZeroMemory(pTmaxTimeout, sizeof(struct timeval));
+	    if (Tmax > 0) /* return immdiately if Tmax == 0 */
+	    {
+		pTmaxTimeout->tv_sec = Tmax / 1000; /* s */
+		pTmaxTimeout->tv_usec = (Tmax % 1000) * 1000; /* us */
+	    }
 	}
 
 
@@ -295,6 +302,7 @@ BOOL CommReadFile(HANDLE hDevice, LPVOID lpBuffer, DWORD nNumberOfBytesToRead,
 
 		assert(event == FREERDP_PURGE_RXABORT); /* no other expected event so far */
 	}
+
 
 	if (FD_ISSET(pComm->fd_read, &read_set))
 	{
@@ -409,16 +417,18 @@ BOOL CommWriteFile(HANDLE hDevice, LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite
 	 * how much time was left. Keep the timeout variable out of
 	 * the while() */
 
-	pTmaxTimeout = NULL; /* no timeout if Tmax == 0 */
-	if (Tmax > 0)
+	pTmaxTimeout = &tmaxTimeout; 
+	ZeroMemory(pTmaxTimeout, sizeof(struct timeval));
+	if (Tmax > 0) 
 	{
-		ZeroMemory(&tmaxTimeout, sizeof(struct timeval));
-
-		tmaxTimeout.tv_sec = Tmax / 1000; /* s */
-		tmaxTimeout.tv_usec = (Tmax % 1000) * 1000; /* us */
-
-		pTmaxTimeout = &tmaxTimeout;
+		pTmaxTimeout->tv_sec = Tmax / 1000; /* s */
+		pTmaxTimeout->tv_usec = (Tmax % 1000) * 1000; /* us */
 	}
+	else if ((pComm->timeouts.WriteTotalTimeoutMultiplier == 0) && (pComm->timeouts.WriteTotalTimeoutConstant == 0))
+	{
+		pTmaxTimeout = NULL;
+	}
+	/* else return immdiately */
 
 	while (*lpNumberOfBytesWritten < nNumberOfBytesToWrite)
 	{

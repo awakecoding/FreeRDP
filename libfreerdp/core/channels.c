@@ -3,6 +3,7 @@
  * Virtual Channels
  *
  * Copyright 2011 Vic Lee
+ * Copyright 2015 Copyright 2015 Thincast Technologies GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,6 +80,8 @@ BOOL freerdp_channel_send(rdpRdp* rdp, UINT16 channelId, BYTE* data, int size)
 	while (left > 0)
 	{
 		s = rdp_send_stream_init(rdp);
+		if (!s)
+			return FALSE;
 
 		if (left > (int) rdp->settings->VirtualChannelChunkSize)
 		{
@@ -97,10 +100,18 @@ BOOL freerdp_channel_send(rdpRdp* rdp, UINT16 channelId, BYTE* data, int size)
 
 		Stream_Write_UINT32(s, size);
 		Stream_Write_UINT32(s, flags);
-		Stream_EnsureCapacity(s, chunkSize);
+		if (!Stream_EnsureCapacity(s, chunkSize))
+		{
+			Stream_Release(s);
+			return FALSE;
+		}
 		Stream_Write(s, data, chunkSize);
 
-		rdp_send(rdp, s, channelId);
+		if (!rdp_send(rdp, s, channelId))
+		{
+			Stream_Release(s);
+			return FALSE;
+		}
 
 		data += chunkSize;
 		left -= chunkSize;
@@ -243,7 +254,11 @@ static WtsApiFunctionTable FreeRDP_WtsApiFunctionTable =
 	FreeRDP_WTSEnableChildSessions, /* EnableChildSessions */
 	FreeRDP_WTSIsChildSessionsEnabled, /* IsChildSessionsEnabled */
 	FreeRDP_WTSGetChildSessionId, /* GetChildSessionId */
-	FreeRDP_WTSGetActiveConsoleSessionId /* GetActiveConsoleSessionId */
+	FreeRDP_WTSGetActiveConsoleSessionId, /* GetActiveConsoleSessionId */
+	FreeRDP_WTSLogonUser,
+	FreeRDP_WTSLogoffUser,
+	FreeRDP_WTSStartRemoteControlSessionExW,
+	FreeRDP_WTSStartRemoteControlSessionExA
 };
 
 PWtsApiFunctionTable FreeRDP_InitWtsApi(void)

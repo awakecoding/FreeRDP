@@ -75,6 +75,8 @@ void set_screen_id(int id)
 	wfInfo* wfi;
 
 	wfi = wf_info_get_instance();
+	if (!wfi)
+		return;
 	wfi->screenID = id;
 
 	return;
@@ -91,6 +93,12 @@ DWORD WINAPI wf_server_main_loop(LPVOID lpParam)
 	wfInfo* wfi;
 
 	wfi = wf_info_get_instance();
+	if (!wfi)
+	{
+		WLog_ERR(TAG, "Failed to get instance");
+		return -1;
+	}
+
 	wfi->force_all_disconnect = FALSE;
 
 	ZeroMemory(rfds, sizeof(rfds));
@@ -148,13 +156,13 @@ BOOL wfreerdp_server_start(wfServer* server)
 
 	wf_settings_read_dword(HKEY_LOCAL_MACHINE, _T("Software\\FreeRDP\\Server"), _T("DefaultPort"), &server->port);
 
-	if (instance->Open(instance, NULL, (UINT16) server->port))
-	{
-		server->thread = CreateThread(NULL, 0, wf_server_main_loop, (void*) instance, 0, NULL);
-		return TRUE;
-	}
+	if (!instance->Open(instance, NULL, (UINT16) server->port))
+		return FALSE;
 
-	return FALSE;
+	if (!(server->thread = CreateThread(NULL, 0, wf_server_main_loop, (void*) instance, 0, NULL)))
+		return FALSE;
+
+	return TRUE;
 }
 
 BOOL wfreerdp_server_stop(wfServer* server)
@@ -162,6 +170,8 @@ BOOL wfreerdp_server_stop(wfServer* server)
 	wfInfo* wfi;
 
 	wfi = wf_info_get_instance();
+	if (!wfi)
+		return FALSE;
 	WLog_INFO(TAG, "Stopping server");
 	wfi->force_all_disconnect = TRUE;
 	server->instance->Close(server->instance);
@@ -192,10 +202,7 @@ wfServer* wfreerdp_server_new()
 
 void wfreerdp_server_free(wfServer* server)
 {
-	if (server)
-	{
-		free(server);
-	}
+	free(server);
 
 	WSACleanup();
 }
@@ -222,6 +229,8 @@ FREERDP_API UINT32 wfreerdp_server_num_peers()
 	wfInfo* wfi;
 
 	wfi = wf_info_get_instance();
+	if (!wfi)
+		return -1;
 	return wfi->peerCount;
 }
 
@@ -231,6 +240,8 @@ FREERDP_API UINT32 wfreerdp_server_get_peer_hostname(int pId, wchar_t * dstStr)
 	freerdp_peer* peer;
 
 	wfi = wf_info_get_instance();
+	if (!wfi)
+		return 0;
 	peer = wfi->peers[pId];
 
 	if (peer)
@@ -254,6 +265,8 @@ FREERDP_API BOOL wfreerdp_server_peer_is_local(int pId)
 	freerdp_peer* peer;
 
 	wfi = wf_info_get_instance();
+	if (!wfi)
+		return FALSE;
 	peer = wfi->peers[pId];
 
 	if (peer)
@@ -272,6 +285,8 @@ FREERDP_API BOOL wfreerdp_server_peer_is_connected(int pId)
 	freerdp_peer* peer;
 
 	wfi = wf_info_get_instance();
+	if (!wfi)
+		return FALSE;
 	peer = wfi->peers[pId];
 
 	
@@ -291,6 +306,8 @@ FREERDP_API BOOL wfreerdp_server_peer_is_activated(int pId)
 	freerdp_peer* peer;
 
 	wfi = wf_info_get_instance();
+	if (!wfi)
+		return FALSE;
 	peer = wfi->peers[pId];
 	
 	if (peer)
@@ -309,6 +326,8 @@ FREERDP_API BOOL wfreerdp_server_peer_is_authenticated(int pId)
 	freerdp_peer* peer;
 
 	wfi = wf_info_get_instance();
+	if (!wfi)
+		return FALSE;
 	peer = wfi->peers[pId];
 
 	if (peer)

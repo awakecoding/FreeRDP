@@ -22,8 +22,17 @@
 #endif
 
 #include <winpr/crt.h>
+#include <winpr/synch.h>
 
 #include <winpr/winsock.h>
+
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
+#ifndef _WIN32
+#include <fcntl.h>
+#endif
 
 /**
  * ws2_32.dll:
@@ -568,9 +577,11 @@ int WSAGetLastError(void)
 			break;
 #endif
 
+#if defined(EPROTO)
 		case EPROTO:
 			iError = WSAECONNRESET;
 			break;
+#endif
 	}
 
 	/**
@@ -594,6 +605,196 @@ int WSAGetLastError(void)
 	 */
 
 	return iError;
+}
+
+HANDLE WSACreateEvent(void)
+{
+	return CreateEvent(NULL, TRUE, FALSE, NULL);
+}
+
+BOOL WSASetEvent(HANDLE hEvent)
+{
+	return SetEvent(hEvent);
+}
+
+BOOL WSAResetEvent(HANDLE hEvent)
+{
+	return ResetEvent(hEvent);
+}
+
+BOOL WSACloseEvent(HANDLE hEvent)
+{
+	BOOL status;
+
+	status = CloseHandle(hEvent);
+
+	if (!status)
+		SetLastError(6);
+
+	return status;
+}
+
+int WSAEventSelect(SOCKET s, WSAEVENT hEventObject, LONG lNetworkEvents)
+{
+	u_long arg = 1;
+
+	if (_ioctlsocket(s, FIONBIO, &arg) != 0)
+		return SOCKET_ERROR;
+
+	if (SetEventFileDescriptor(hEventObject, s) < 0)
+		return SOCKET_ERROR;
+
+	return 0;
+}
+
+DWORD WSAWaitForMultipleEvents(DWORD cEvents, const HANDLE* lphEvents, BOOL fWaitAll, DWORD dwTimeout, BOOL fAlertable)
+{
+	return WaitForMultipleObjectsEx(cEvents, lphEvents, fWaitAll, dwTimeout, fAlertable);
+}
+
+SOCKET WSASocketA(int af, int type, int protocol, LPWSAPROTOCOL_INFOA lpProtocolInfo, GROUP g, DWORD dwFlags)
+{
+	SOCKET s;
+
+	s = _socket(af, type, protocol);
+
+	return s;
+}
+
+SOCKET WSASocketW(int af, int type, int protocol, LPWSAPROTOCOL_INFOW lpProtocolInfo, GROUP g, DWORD dwFlags)
+{
+	return WSASocketA(af, type, protocol, (LPWSAPROTOCOL_INFOA) lpProtocolInfo, g, dwFlags);
+}
+
+int WSAIoctl(SOCKET s, DWORD dwIoControlCode, LPVOID lpvInBuffer,
+		DWORD cbInBuffer, LPVOID lpvOutBuffer, DWORD cbOutBuffer,
+		LPDWORD lpcbBytesReturned, LPWSAOVERLAPPED lpOverlapped,
+		LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine)
+{
+	int fd;
+	int index;
+	ULONG nFlags;
+	size_t offset;
+	size_t ifreq_len;
+	struct ifreq* ifreq;
+	struct ifconf ifconf;
+	char address[128];
+	char broadcast[128];
+	char netmask[128];
+	char buffer[4096];
+	int numInterfaces;
+	int maxNumInterfaces;
+	INTERFACE_INFO* pInterface;
+	INTERFACE_INFO* pInterfaces;
+	struct sockaddr_in* pAddress;
+	struct sockaddr_in* pBroadcast;
+	struct sockaddr_in* pNetmask;
+
+	if ((dwIoControlCode != SIO_GET_INTERFACE_LIST) ||
+		(!lpvOutBuffer || !cbOutBuffer || !lpcbBytesReturned))
+	{
+		WSASetLastError(WSAEINVAL);
+		return SOCKET_ERROR;
+	}
+
+	fd = (int) s;
+	pInterfaces = (INTERFACE_INFO*) lpvOutBuffer;
+	maxNumInterfaces = cbOutBuffer / sizeof(INTERFACE_INFO);
+
+	ifconf.ifc_len = sizeof(buffer);
+	ifconf.ifc_buf = buffer;
+
+	if (ioctl(fd, SIOCGIFCONF, &ifconf) != 0)
+	{
+		WSASetLastError(WSAENETDOWN);
+		return SOCKET_ERROR;
+	}
+
+	index = 0;
+	offset = 0;
+	numInterfaces = 0;
+	ifreq = ifconf.ifc_req;
+
+	while ((offset < ifconf.ifc_len) && (numInterfaces < maxNumInterfaces))
+	{
+		pInterface = &pInterfaces[index];
+		pAddress = (struct sockaddr_in*) &pInterface->iiAddress;
+		pBroadcast = (struct sockaddr_in*) &pInterface->iiBroadcastAddress;
+		pNetmask = (struct sockaddr_in*) &pInterface->iiNetmask;
+
+		if (ioctl(fd, SIOCGIFFLAGS, ifreq) != 0)
+			goto next_ifreq;
+
+		nFlags = 0;
+
+		if (ifreq->ifr_flags & IFF_UP)
+			nFlags |= _IFF_UP;
+
+		if (ifreq->ifr_flags & IFF_BROADCAST)
+			nFlags |= _IFF_BROADCAST;
+
+		if (ifreq->ifr_flags & IFF_LOOPBACK)
+			nFlags |= _IFF_LOOPBACK;
+
+		if (ifreq->ifr_flags & IFF_POINTOPOINT)
+			nFlags |= _IFF_POINTTOPOINT;
+
+		if (ifreq->ifr_flags & IFF_MULTICAST)
+			nFlags |= _IFF_MULTICAST;
+
+		pInterface->iiFlags = nFlags;
+
+		if (ioctl(fd, SIOCGIFADDR, ifreq) != 0)
+			goto next_ifreq;
+
+		if ((ifreq->ifr_addr.sa_family != AF_INET) && (ifreq->ifr_addr.sa_family != AF_INET6))
+			goto next_ifreq;
+
+		getnameinfo(&ifreq->ifr_addr, sizeof(ifreq->ifr_addr),
+				address, sizeof(address), 0, 0, NI_NUMERICHOST);
+
+		inet_pton(ifreq->ifr_addr.sa_family, address, (void*) &pAddress->sin_addr);
+
+		if (ioctl(fd, SIOCGIFBRDADDR, ifreq) != 0)
+			goto next_ifreq;
+
+		if ((ifreq->ifr_addr.sa_family != AF_INET) && (ifreq->ifr_addr.sa_family != AF_INET6))
+			goto next_ifreq;
+
+		getnameinfo(&ifreq->ifr_addr, sizeof(ifreq->ifr_addr),
+				broadcast, sizeof(broadcast), 0, 0, NI_NUMERICHOST);
+
+		inet_pton(ifreq->ifr_addr.sa_family, broadcast, (void*) &pBroadcast->sin_addr);
+
+		if (ioctl(fd, SIOCGIFNETMASK, ifreq) != 0)
+			goto next_ifreq;
+
+		if ((ifreq->ifr_addr.sa_family != AF_INET) && (ifreq->ifr_addr.sa_family != AF_INET6))
+			goto next_ifreq;
+
+		getnameinfo(&ifreq->ifr_addr, sizeof(ifreq->ifr_addr),
+				netmask, sizeof(netmask), 0, 0, NI_NUMERICHOST);
+
+		inet_pton(ifreq->ifr_addr.sa_family, netmask, (void*) &pNetmask->sin_addr);
+
+		numInterfaces++;
+
+next_ifreq:
+
+#ifndef __linux__
+		ifreq_len = IFNAMSIZ + ifreq->ifr_addr.sa_len;
+#else
+		ifreq_len = sizeof(*ifreq);
+#endif
+
+		ifreq = (struct ifreq*) &((BYTE*) ifreq)[ifreq_len];
+		offset += ifreq_len;
+		index++;
+	}
+
+	*lpcbBytesReturned = (DWORD) (numInterfaces * sizeof(INTERFACE_INFO));
+
+	return 0;
 }
 
 SOCKET _accept(SOCKET s, struct sockaddr* addr, int* addrlen)
@@ -646,6 +847,26 @@ int _connect(SOCKET s, const struct sockaddr* name, int namelen)
 
 int _ioctlsocket(SOCKET s, long cmd, u_long* argp)
 {
+	int fd = (int) s;
+
+	if (cmd == FIONBIO)
+	{
+		int flags;
+
+		if (!argp)
+			return SOCKET_ERROR;
+
+		flags = fcntl(fd, F_GETFL);
+
+		if (flags == -1)
+			return SOCKET_ERROR;
+
+		if (*argp)
+			fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+		else
+			fcntl(fd, F_SETFL, flags & ~(O_NONBLOCK));
+	}
+
 	return 0;
 }
 

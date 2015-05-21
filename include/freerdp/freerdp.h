@@ -59,7 +59,7 @@ typedef RDP_CLIENT_ENTRY_POINTS_V1 RDP_CLIENT_ENTRY_POINTS;
 extern "C" {
 #endif
 
-typedef int (*pContextNew)(freerdp* instance, rdpContext* context);
+typedef BOOL (*pContextNew)(freerdp* instance, rdpContext* context);
 typedef void (*pContextFree)(freerdp* instance, rdpContext* context);
 
 typedef BOOL (*pPreConnect)(freerdp* instance);
@@ -237,7 +237,7 @@ struct rdp_freerdp
 	UINT64 paddingE[80 - 66]; /* 66 */
 };
 
-FREERDP_API int freerdp_context_new(freerdp* instance);
+FREERDP_API BOOL freerdp_context_new(freerdp* instance);
 FREERDP_API void freerdp_context_free(freerdp* instance);
 
 FREERDP_API BOOL freerdp_connect(freerdp* instance);
@@ -248,6 +248,9 @@ FREERDP_API BOOL freerdp_reconnect(freerdp* instance);
 FREERDP_API BOOL freerdp_get_fds(freerdp* instance, void** rfds, int* rcount, void** wfds, int* wcount);
 FREERDP_API BOOL freerdp_check_fds(freerdp* instance);
 
+FREERDP_API DWORD freerdp_get_event_handles(rdpContext* context, HANDLE* events, DWORD count);
+FREERDP_API BOOL freerdp_check_event_handles(rdpContext* context);
+
 FREERDP_API wMessageQueue* freerdp_get_message_queue(freerdp* instance, DWORD id);
 FREERDP_API HANDLE freerdp_get_message_queue_event_handle(freerdp* instance, DWORD id);
 FREERDP_API int freerdp_message_queue_process_message(freerdp* instance, DWORD id, wMessage* message);
@@ -257,6 +260,9 @@ FREERDP_API UINT32 freerdp_error_info(freerdp* instance);
 FREERDP_API void freerdp_set_error_info(rdpRdp* rdp, UINT32 error);
 
 FREERDP_API void freerdp_get_version(int* major, int* minor, int* revision);
+FREERDP_API const char* freerdp_get_version_string(void);
+FREERDP_API const char* freerdp_get_build_date(void);
+FREERDP_API const char* freerdp_get_build_revision(void);
 
 FREERDP_API freerdp* freerdp_new(void);
 FREERDP_API void freerdp_free(freerdp* instance);
@@ -265,7 +271,11 @@ FREERDP_API BOOL freerdp_focus_required(freerdp* instance);
 FREERDP_API void freerdp_set_focus(freerdp* instance);
 
 FREERDP_API UINT32 freerdp_get_last_error(rdpContext* context);
+FREERDP_API const char* freerdp_get_last_error_name(UINT32 error);
+FREERDP_API const char* freerdp_get_last_error_string(UINT32 error);
 FREERDP_API void freerdp_set_last_error(rdpContext* context, UINT32 lastError);
+
+FREERDP_API ULONG freerdp_get_transport_sent(rdpContext* context, BOOL resetCount);
 
 #ifdef __cplusplus
 }

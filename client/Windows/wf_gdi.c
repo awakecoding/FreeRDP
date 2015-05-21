@@ -342,7 +342,7 @@ void wf_toggle_fullscreen(wfContext* wfc)
 	}
 }
 
-void wf_gdi_bitmap_update(rdpContext* context, BITMAP_UPDATE* bitmapUpdate)
+BOOL wf_gdi_bitmap_update(rdpContext* context, BITMAP_UPDATE* bitmapUpdate)
 {
 	HDC hdc;
 	int status;
@@ -366,6 +366,8 @@ void wf_gdi_bitmap_update(rdpContext* context, BITMAP_UPDATE* bitmapUpdate)
 	wfContext* wfc = (wfContext*) context;
 
 	hdc = CreateCompatibleDC(GetDC(NULL));
+	if (!hdc)
+		return FALSE;
 
 	for (index = 0; index < bitmapUpdate->number; index++)
 	{
@@ -395,7 +397,7 @@ void wf_gdi_bitmap_update(rdpContext* context, BITMAP_UPDATE* bitmapUpdate)
 			wfc->bitmap_buffer = (BYTE*) _aligned_realloc(wfc->bitmap_buffer, wfc->bitmap_size, 16);
 
 			if (!wfc->bitmap_buffer)
-				return;
+				return FALSE;
 		}
 
 		if (compressed)
@@ -404,14 +406,16 @@ void wf_gdi_bitmap_update(rdpContext* context, BITMAP_UPDATE* bitmapUpdate)
 
 			if (bitsPerPixel < 32)
 			{
-				freerdp_client_codecs_prepare(codecs, FREERDP_CODEC_INTERLEAVED);
+				if (!freerdp_client_codecs_prepare(codecs, FREERDP_CODEC_INTERLEAVED))
+					return FALSE;
 
 				status = interleaved_decompress(codecs->interleaved, pSrcData, SrcSize, bitsPerPixel,
 						&pDstData, PIXEL_FORMAT_XRGB32, nWidth * 4, 0, 0, nWidth, nHeight, NULL);
 			}
 			else
 			{
-				freerdp_client_codecs_prepare(codecs, FREERDP_CODEC_PLANAR);
+				if (!freerdp_client_codecs_prepare(codecs, FREERDP_CODEC_PLANAR))
+					return FALSE;
 
 				status = planar_decompress(codecs->planar, pSrcData, SrcSize, &pDstData,
 						PIXEL_FORMAT_XRGB32, nWidth * 4, 0, 0, nWidth, nHeight, TRUE);
@@ -420,7 +424,7 @@ void wf_gdi_bitmap_update(rdpContext* context, BITMAP_UPDATE* bitmapUpdate)
 			if (status < 0)
 			{
 				WLog_ERR(TAG, "bitmap decompression failure");
-				return;
+				return FALSE;
 			}
 
 			pSrcData = wfc->bitmap_buffer;
@@ -440,6 +444,7 @@ void wf_gdi_bitmap_update(rdpContext* context, BITMAP_UPDATE* bitmapUpdate)
 	}
 
 	ReleaseDC(NULL, hdc);
+	return TRUE;
 }
 
 void wf_gdi_palette_update(wfContext* wfc, PALETTE_UPDATE* palette)
@@ -667,17 +672,19 @@ void wf_gdi_surface_bits(wfContext* wfc, SURFACE_BITS_COMMAND* surface_bits_comm
 {
 	int i, j;
 	int tx, ty;
-	char* tile_bitmap;
 	RFX_MESSAGE* message;
 	BITMAPINFO bitmap_info;
 
-	tile_bitmap = (char*) malloc(32);
-	ZeroMemory(tile_bitmap, 32);
-
 	if (surface_bits_command->codecID == RDP_CODEC_ID_REMOTEFX)
 	{
-		freerdp_client_codecs_prepare(wfc->codecs, FREERDP_CODEC_REMOTEFX);
-		message = rfx_process_message(wfc->codecs->rfx, surface_bits_command->bitmapData, surface_bits_command->bitmapDataLength);
+		if (!freerdp_client_codecs_prepare(wfc->codecs, FREERDP_CODEC_REMOTEFX))
+			return;
+
+		if (!(message = rfx_process_message(wfc->codecs->rfx, surface_bits_command->bitmapData, surface_bits_command->bitmapDataLength)))
+		{
+			WLog_ERR(TAG, "Failed to process RemoteFX message");
+			return;
+		}
 
 		/* blit each tile */
 		for (i = 0; i < message->numTiles; i++)
@@ -712,7 +719,9 @@ void wf_gdi_surface_bits(wfContext* wfc, SURFACE_BITS_COMMAND* surface_bits_comm
 	}
 	else if (surface_bits_command->codecID == RDP_CODEC_ID_NSCODEC)
 	{
-		freerdp_client_codecs_prepare(wfc->codecs, FREERDP_CODEC_NSCODEC);
+		if (!freerdp_client_codecs_prepare(wfc->codecs, FREERDP_CODEC_NSCODEC))
+			return;
+
 		nsc_process_message(wfc->codecs->nsc, surface_bits_command->bpp, surface_bits_command->width, surface_bits_command->height,
 			surface_bits_command->bitmapData, surface_bits_command->bitmapDataLength);
 		ZeroMemory(&bitmap_info, sizeof(bitmap_info));
@@ -747,9 +756,6 @@ void wf_gdi_surface_bits(wfContext* wfc, SURFACE_BITS_COMMAND* surface_bits_comm
 	{
 		WLog_ERR(TAG,  "Unsupported codecID %d", surface_bits_command->codecID);
 	}
-
-	if (tile_bitmap != NULL)
-		free(tile_bitmap);
 }
 
 void wf_gdi_surface_frame_marker(wfContext* wfc, SURFACE_FRAME_MARKER* surface_frame_marker)

@@ -28,6 +28,7 @@
 #include "../shadow_surface.h"
 #include "../shadow_capture.h"
 #include "../shadow_subsystem.h"
+#include "../shadow_mcevent.h"
 
 #include "win_shadow.h"
 
@@ -287,14 +288,7 @@ int win_shadow_surface_copy(winShadowSubsystem* subsystem)
 
 	count = ArrayList_Count(server->clients);
 
-	InitializeSynchronizationBarrier(&(subsystem->barrier), count + 1, -1);
-
-	SetEvent(subsystem->updateEvent);
-
-	EnterSynchronizationBarrier(&(subsystem->barrier), 0);
-	ResetEvent(subsystem->updateEvent);
-
-	DeleteSynchronizationBarrier(&(subsystem->barrier));
+	shadow_multiclient_publish_and_wait(subsystem->updateEvent);
 
 	ArrayList_Unlock(server->clients);
 
@@ -408,7 +402,6 @@ int win_shadow_enum_monitors(MONITOR_DEF* monitors, int maxMonitors)
 	DWORD iDevNum = 0;
 	int numMonitors = 0;
 	MONITOR_DEF* monitor;
-	MONITOR_DEF* virtualScreen;
 	DISPLAY_DEVICE displayDevice;
 
 	ZeroMemory(&displayDevice, sizeof(DISPLAY_DEVICE));
@@ -485,9 +478,13 @@ int win_shadow_subsystem_start(winShadowSubsystem* subsystem)
 	if (!subsystem)
 		return -1;
 
-	thread = CreateThread(NULL, 0,
+	if (!(thread = CreateThread(NULL, 0,
 			(LPTHREAD_START_ROUTINE) win_shadow_subsystem_thread,
-			(void*) subsystem, 0, NULL);
+			(void*) subsystem, 0, NULL)))
+	{
+		WLog_ERR(TAG, "Failed to create thread");
+		return -1;
+	}
 
 	return 1;
 }
