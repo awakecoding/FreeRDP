@@ -103,7 +103,9 @@ SECURITY_STATUS SEC_ENTRY negotiate_InitializeSecurityContextW(PCredHandle phCre
 		sspi_SecureHandleSetUpperPointer(phNewContext, (void*) NEGOTIATE_PACKAGE_NAME);
 	}
 
-	negotiate_SetSubPackage(context, "Kerberos");
+	if(!pInput){
+		negotiate_SetSubPackage(context, "Kerberos");
+	}
 
 	status = context->sspiW->InitializeSecurityContextW(phCredential, &(context->SubContext),
 		pszTargetName, fContextReq, Reserved1, TargetDataRep, pInput, Reserved2, &(context->SubContext),
@@ -111,9 +113,10 @@ SECURITY_STATUS SEC_ENTRY negotiate_InitializeSecurityContextW(PCredHandle phCre
 
 	if ((status != SEC_E_OK) && (status != SEC_I_CONTINUE_NEEDED) && context->kerberos)
 	{
-		context->sspiW->DeleteSecurityContext(&(context->SubContext));
-
-		negotiate_SetSubPackage(context, "NTLM");
+		if(!pInput){
+			context->sspiW->DeleteSecurityContext(&(context->SubContext));
+			negotiate_SetSubPackage(context, "NTLM");
+		}
 
 		status = context->sspiW->InitializeSecurityContextW(phCredential, &(context->SubContext),
 			pszTargetName, fContextReq, Reserved1, TargetDataRep, pInput, Reserved2, &(context->SubContext),
@@ -144,7 +147,9 @@ SECURITY_STATUS SEC_ENTRY negotiate_InitializeSecurityContextA(PCredHandle phCre
 		sspi_SecureHandleSetUpperPointer(phNewContext, (void*) NEGOTIATE_PACKAGE_NAME);
 	}
 
-	negotiate_SetSubPackage(context, "Kerberos");
+	if(!pInput){
+		negotiate_SetSubPackage(context, "Kerberos");
+	}
 
 	status = context->sspiA->InitializeSecurityContextA(phCredential, &(context->SubContext),
 		pszTargetName, fContextReq, Reserved1, TargetDataRep, pInput, Reserved2, &(context->SubContext),
@@ -152,9 +157,10 @@ SECURITY_STATUS SEC_ENTRY negotiate_InitializeSecurityContextA(PCredHandle phCre
 
 	if ((status != SEC_E_OK) && (status != SEC_I_CONTINUE_NEEDED) && context->kerberos)
 	{
-		context->sspiA->DeleteSecurityContext(&(context->SubContext));
-
-		negotiate_SetSubPackage(context, "NTLM");
+		if(!pInput){
+			context->sspiA->DeleteSecurityContext(&(context->SubContext));
+			negotiate_SetSubPackage(context, "NTLM");
+		}
 
 		status = context->sspiA->InitializeSecurityContextA(phCredential, &(context->SubContext),
 			pszTargetName, fContextReq, Reserved1, TargetDataRep, pInput, Reserved2, &(context->SubContext),
