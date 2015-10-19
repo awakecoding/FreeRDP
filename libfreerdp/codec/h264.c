@@ -23,6 +23,7 @@
 
 #include <winpr/crt.h>
 #include <winpr/print.h>
+#include <winpr/stream.h>
 #include <winpr/bitstream.h>
 
 #include <freerdp/primitives.h>
@@ -1556,4 +1557,282 @@ void h264_context_free(H264_CONTEXT* h264)
 
 		free(h264);
 	}
+}
+
+/**
+ * Network Abstraction Layer Units (NALs)
+ *
+ * 0		Unspecified                                                    non-VCL
+ * 1		Coded slice of a non-IDR picture                               VCL
+ * 2		Coded slice data partition A                                   VCL
+ * 3		Coded slice data partition B                                   VCL
+ * 4		Coded slice data partition C                                   VCL
+ * 5		Coded slice of an IDR picture                                  VCL
+ * 6		Supplemental enhancement information (SEI)                     non-VCL
+ * 7		Sequence parameter set                                         non-VCL
+ * 8		Picture parameter set                                          non-VCL
+ * 9		Access unit delimiter                                          non-VCL
+ * 10		End of sequence                                                non-VCL
+ * 11		End of stream                                                  non-VCL
+ * 12		Filler data                                                    non-VCL
+ * 13		Sequence parameter set extension                               non-VCL
+ * 14		Prefix NAL unit                                                non-VCL
+ * 15		Subset sequence parameter set                                  non-VCL
+ * 16		Depth parameter set                                            non-VCL
+ * 17..18	Reserved                                                       non-VCL
+ * 19		Coded slice of an auxiliary coded picture without partitioning non-VCL
+ * 20		Coded slice extension                                          non-VCL
+ * 21		Coded slice extension for depth view components                non-VCL
+ * 22..23	Reserved                                                       non-VCL
+ * 24..31	Unspecified                                                    non-VCL
+ */
+
+const char* h264_get_nal_unit_name(int nal_unit_type)
+{
+	switch (nal_unit_type)
+	{
+		case 0: return "Unspecified";
+		case 1: return "Coded slice of a non-IDR picture";
+		case 2: return "Coded slice data partition A";
+		case 3: return "Coded slice data partition B";
+		case 4: return "Coded slice data partition C";
+		case 5: return "Coded slice of an IDR picture";
+		case 6: return "Supplemental enhancement information (SEI)";
+		case 7: return "Sequence parameter set";
+		case 8: return "Picture parameter set";
+		case 9: return "Access unit delimiter";
+		case 10: return "End of sequence";
+		case 11: return "End of stream";
+		case 12: return "Filler data";
+		case 13: return "Sequence parameter set extension";
+		case 14: return "Prefix NAL unit";
+		case 15: return "Subset sequence parameter set";
+		case 16: return "Depth parameter set";
+		case 17: return "Reserved17";
+		case 18: return "Reserved18";
+		case 19: return "Coded slice of an auxiliary coded picture without partitioning";
+		case 20: return "Coded slice extension";
+		case 21: return "Coded slice extension for depth view components";
+		case 22: return "Reserved22";
+		case 23: return "Reserved23";
+		case 24: return "Unspecified24";
+		case 25: return "Unspecified25";
+		case 26: return "Unspecified26";
+		case 27: return "Unspecified27";
+		case 28: return "Unspecified28";
+		case 29: return "Unspecified29";
+		case 30: return "Unspecified30";
+		case 31: return "Unspecified31";
+	}
+
+	return "Unknown";
+}
+
+/*
+ * nal_unit_header_svc_extension() {
+ * 	idr_flag			u(1)
+ * 	priority_id			u(6)
+ * 	no_inter_layer_pred_flag	u(1)
+ * 	dependency_id			u(3)
+ * 	quality_id			u(4)
+ * 	temporal_id			u(3)
+ * 	use_ref_base_pic_flag		u(1)
+ * 	discardable_flag		u(1)
+ * 	output_flag			u(1)
+ * 	reserved_three_2bits		u(2)
+ * }
+ *
+ * nal_unit_header_mvc_extension() {
+ * 	non_idr_flag			u(1)
+ * 	priority_id			u(6)
+ * 	view_id				u(10)
+ * 	temporal_id			u(3)
+ * 	anchor_pic_flag			u(1)
+ * 	inter_view_flag			u(1)
+ * 	reserved_one_bit		u(1)
+ * }
+ *
+ * nal_unit(NumBytesInNALunit) {
+ * 	forbidden_zero_bit		f(1)
+ * 	nal_ref_idc			u(2)
+ * 	nal_unit_type			u(5)
+ * 	NumBytesInRBSP = 0
+ * 	nalUnitHeaderBytes = 1
+ * 	if (nal_unit_type == 14 || nal_unit_type == 20) {
+ * 		svc_extension_flag	u(1)
+ * 		if (svc_extension_flag)
+ * 			nal_unit_header_svc_extension()
+ * 		else
+ * 			nal_unit_header_mvc_extension()
+ * 		nalUnitHeaderBytes += 3
+ * 	}
+ * 	for (i = nalUnitHeaderBytes; i < NumBytesInNALunit; i++) {
+ * 		if (i + 2 < NumBytesInNALunit && next_bits(24) == 0x000003) {
+ * 			rbsp_byte[NumBytesInRBSP++]	b(8)
+ * 			rbsp_byte[NumBytesInRBSP++]	b(8)
+ * 			i += 2
+ * 			emulation_prevention_three_byte	f(8)
+ * 		} else {
+ * 			rbsp_byte[NumBytesInRBSP++]	b(8)
+ * 		}
+ * 	}
+ * }
+ *
+ * byte_stream_nal_unit(NumBytesInNALunit) {
+ * 	while (next_bits(24) != 0x000001 && next_bits(32) != 0x00000001)
+ * 		leading_zero_8bits	f(8)
+ * 	if (next_bits(24) != 0x000001)
+ * 		zero_byte		f(8)
+ * 	start_code_prefix_one_3bytes	f(24)
+ * 	nal_unit(NumBytesInNALunit)
+ * 	while (more_data_in_byte_stream() && next_bits(24) != 0x000001 && next_bits(32) != 0x00000001)
+ * 		trailing_zero_8bits	f(8)
+ * }
+ *
+ */
+
+int h264_parse_byte_stream(BYTE* pSrcData, UINT32 SrcSize)
+{
+	BYTE* d;
+	int nal_ref_idc;
+	int nal_unit_type;
+	int nal_unit_index;
+	int svc_extension_flag;
+	int nal_unit_header_bytes;
+	int num_bytes_in_nal_unit;
+	BYTE* p = pSrcData;
+	BYTE* e = &p[SrcSize];
+
+	if ((e - p) < 4)
+		return -1;
+
+	while (!((p[0] == 0) && (p[1] == 0) && (p[2] == 0) && (p[3] == 1)))
+	{
+		if (*p != 0)
+			return -1;
+
+		p++; /* leading_zero_bits, 0x00 */
+
+		if ((e - p) < 4)
+			return -1;
+	}
+
+	for (nal_unit_index = 0; nal_unit_index < 20; nal_unit_index++)
+	{
+		if ((e - p) < 3)
+			return -1;
+
+		if (!((p[0] == 0) && (p[1] == 0) && (p[2] == 1)))
+		{
+			p++; /* zero_byte, 0x00 */
+
+			if (p >= e)
+				return -1;
+		}
+
+		if ((e - p) < 3)
+			return -1;
+
+		p += 3; /* start_code_prefix_one_3bytes, 0x000001 */
+
+		d = p;
+
+		while ((!((d[0] == 0) && (d[1] == 0) && (d[2] == 1))) &&
+			(!((d[0] == 0) && (d[1] == 0) && (d[2] == 0))))
+		{
+			if (d >= e)
+				break;
+
+			d++;
+		}
+
+		num_bytes_in_nal_unit = d - p;
+
+		d = p;
+
+		if (*p & 0x80)
+			return -1; /* forbidden_zero_bit */
+
+		nal_ref_idc = *p >> 5;
+		nal_unit_type = *p & 0x1F;
+
+		nal_unit_header_bytes = 1;
+
+		if ((nal_unit_type == 14) || (nal_unit_type == 20))
+		{
+			if ((e - p) < 3)
+				return -1;
+
+			svc_extension_flag = (*p >> 7) & 0x1;
+
+			if (svc_extension_flag)
+			{
+				int idr_flag;
+				int priority_id;
+				int no_inter_layer_pred_flag;
+				int dependency_id;
+				int quality_id;
+				int temporal_id;
+				int use_ref_base_pic_flag;
+				int discardable_flag;
+				int output_flag;
+				int reserved_three_2bits;
+
+				idr_flag = (*p >> 6) & 0x1;
+				priority_id = *p & 0x3F;
+				p++;
+
+				no_inter_layer_pred_flag = (*p >> 7) & 0x1;
+				dependency_id = (*p >> 4) & 0x7;
+				quality_id = *p & 0xF;
+				p++;
+
+				temporal_id = (*p >> 5) & 0x7;
+				use_ref_base_pic_flag = (*p >> 4) & 0x1;
+				discardable_flag = (*p >> 3) & 0x1;
+				output_flag = (*p >> 2) & 0x1;
+				reserved_three_2bits = *p & 0x3;
+				p++;
+			}
+			else
+			{
+				int non_idr_flag;
+				int priority_id;
+				int view_id;
+				int temporal_id;
+				int anchor_pic_flag;
+				int inter_view_flag;
+				int reserved_one_bit;
+
+				non_idr_flag = (*p >> 6) & 0x1;
+				priority_id = *p & 0x3F;
+				p++;
+
+				view_id = (p[0] << 8) + (p[1] >> 6);
+				p++;
+
+				temporal_id = (*p >> 3) & 0x7;
+				anchor_pic_flag = (*p >> 2) & 0x1;
+				inter_view_flag = (*p >> 1) & 0x1;
+				reserved_one_bit = *p & 0x1;
+				p++;
+			}
+
+			nal_unit_header_bytes += 3;
+		}
+
+		p = d + num_bytes_in_nal_unit;
+
+		while ((p < e) && (!(((e - p) >= 3) && (p[0] == 0) && (p[1] == 0) && (p[2] == 1))) &&
+				(!(((e - p) >= 4) && (p[0] == 0) && (p[1] == 0) && (p[2] == 0) && (p[3] == 1))))
+		{
+			p++; /* trailing_zero_bits */
+		}
+
+		fprintf(stderr, "[%004d] type: %d ref_idc: %d size: %d name: %s\n",
+				nal_unit_index, nal_unit_type, nal_ref_idc,
+				num_bytes_in_nal_unit, h264_get_nal_unit_name(nal_unit_type));
+	}
+
+	return 1;
 }

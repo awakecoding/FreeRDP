@@ -6,6 +6,7 @@ set(${MODULE_PREFIX}_DRIVER ${MODULE_NAME}.c)
 
 set(${MODULE_PREFIX}_TESTS
 	TestFreeRDPRegion.c
+	TestFreeRDPCodecH264.c
 	TestFreeRDPCodecMppc.c
 	TestFreeRDPCodecNCrush.c
 	TestFreeRDPCodecXCrush.c
