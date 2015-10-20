@@ -22,6 +22,7 @@
 #endif
 
 #include <winpr/crt.h>
+#include <winpr/rpc.h>
 #include <winpr/print.h>
 #include <winpr/intrin.h>
 #include <winpr/sysinfo.h>
@@ -31,6 +32,28 @@
 #include <freerdp/primitives.h>
 #include <freerdp/codec/h264.h>
 #include <freerdp/log.h>
+
+static BOOL g_LZCNT = FALSE;
+
+static INLINE UINT32 lzcnt_s(UINT32 x)
+{
+	if (!x)
+		return 32;
+
+	if (!g_LZCNT)
+	{
+		UINT32 y;
+		int n = 32;
+		y = x >> 16;  if (y != 0) { n = n - 16; x = y; }
+		y = x >>  8;  if (y != 0) { n = n -  8; x = y; }
+		y = x >>  4;  if (y != 0) { n = n -  4; x = y; }
+		y = x >>  2;  if (y != 0) { n = n -  2; x = y; }
+		y = x >>  1;  if (y != 0) return n - 2;
+		return n - x;
+	}
+
+	return __lzcnt(x);
+}
 
 #define TAG FREERDP_TAG("codec")
 
@@ -1528,6 +1551,8 @@ H264_CONTEXT* h264_context_new(BOOL Compressor)
 
 	h264 = (H264_CONTEXT*) calloc(1, sizeof(H264_CONTEXT));
 
+	g_LZCNT = IsProcessorFeaturePresentEx(PF_EX_LZCNT);
+
 	if (h264)
 	{
 		h264->Compressor = Compressor;
@@ -1635,28 +1660,6 @@ const char* h264_get_nal_unit_name(int nal_unit_type)
 	return "Unknown";
 }
 
-static BOOL g_LZCNT = FALSE;
-
-static INLINE UINT32 lzcnt_s(UINT32 x)
-{
-	if (!x)
-		return 32;
-
-	if (!g_LZCNT)
-	{
-		UINT32 y;
-		int n = 32;
-		y = x >> 16;  if (y != 0) { n = n - 16; x = y; }
-		y = x >>  8;  if (y != 0) { n = n -  8; x = y; }
-		y = x >>  4;  if (y != 0) { n = n -  4; x = y; }
-		y = x >>  2;  if (y != 0) { n = n -  2; x = y; }
-		y = x >>  1;  if (y != 0) return n - 2;
-		return n - x;
-	}
-
-	return __lzcnt(x);
-}
-
 int h264_parse_exp_golomb_code(wBitStream* bs)
 {
 	int vk;
@@ -1701,6 +1704,66 @@ int h264_parse_exp_golomb_code(wBitStream* bs)
 	}
 
 	return code;
+}
+
+struct h264_supplemental_enhancement_information
+{
+	int payloadType;
+	int payloadSize;
+};
+
+int h264_parse_supplemental_enhancement_information(struct h264_supplemental_enhancement_information* sei, BYTE* data, UINT32 size)
+{
+	BYTE* p = data;
+
+	ZeroMemory(sei, sizeof(struct h264_supplemental_enhancement_information));
+
+	while (*p == 0xFF)
+	{
+		p++;
+		sei->payloadType += 0xFF;
+	}
+
+	sei->payloadType += *p;
+	p++;
+
+	while (*p == 0xFF)
+	{
+		p++;
+		sei->payloadSize += 0xFF;
+	}
+
+	sei->payloadSize += *p;
+	p++;
+
+	if (sei->payloadType == 5) /* user_data_unregistered */
+	{
+		RPC_CSTR uuid = NULL;
+
+		/**
+		 * {5061F802-70FC-7241-B732-48F3A72A3D34}:
+		 * Microsoft H.264 Encoder V1.5.3
+		 */
+
+		/**
+		 * {9213B2CB-7398-DA43-A8A6-C74298356CF5}:
+		 * src:3 h:768 w:1024 fps:30.000 pf:66 lvl:9 b:0 bqp:3 gop:30 idr:30 slc:4
+		 * cmp:0 rc:1 qp:26 rate:3000000 peak:4000000 buff:4000000 ref:1 srch:32 asrch:1
+		 * subp:1 par:6 3 3 rnd:0 cabac:0 lp:2 ctnt:0 aud:1 lat:1 wrk:1 vui:1 lyr:1 <<
+		 */
+
+		if (UuidToStringA((UUID*) p, &uuid) != RPC_S_OK)
+			return -1;
+
+		p += 16;
+
+		fprintf(stderr, "{%s}\n", uuid);
+		fprintf(stderr, "%s\n", p);
+
+		RpcStringFreeA(&uuid);
+	}
+
+	return 1;
 }
 
 struct h264_sequence_parameter_set
@@ -1790,8 +1853,7 @@ int h264_parse_sequence_parameter_set(struct h264_sequence_parameter_set* sps, B
 		{
 			for (i = 0; i < ((sps->chroma_format_idc != 3) ? 8 : 12); i++)
 			{
-				/* seq_scaling_list_present_flag[i] */
-				BitStream_Shift(bs, 1);
+				BitStream_Shift(bs, 1); /* seq_scaling_list_present_flag[i] */
 			}
 		}
 	}
@@ -1812,8 +1874,7 @@ int h264_parse_sequence_parameter_set(struct h264_sequence_parameter_set* sps, B
 
 		for (i = 0; i < sps->num_ref_frames_in_pic_order_cnt_cycle; i++)
 		{
-			/* offset_for_ref_frame[i] */
-			h264_parse_exp_golomb_code(bs);
+			h264_parse_exp_golomb_code(bs); /* offset_for_ref_frame[i] */
 		}
 	}
 
@@ -1942,6 +2003,18 @@ int h264_parse_picture_parameter_set(struct h264_picture_parameter_set* pps, BYT
 	return 1;
 }
 
+struct h264_access_unit_delimiter
+{
+	int primary_pic_type;
+};
+
+int h264_parse_access_unit_delimiter(struct h264_access_unit_delimiter* aud, BYTE* data, UINT32 size)
+{
+	BYTE* p = data;
+	aud->primary_pic_type = (*p >> 5) & 0x7;
+	return 1;
+}
+
 /*
  * nal_unit_header_svc_extension() {
  * 	idr_flag			u(1)
@@ -1955,6 +2028,46 @@ int h264_parse_picture_parameter_set(struct h264_picture_parameter_set* pps, BYT
  * 	output_flag			u(1)
  * 	reserved_three_2bits		u(2)
  * }
+ */
+
+struct h264_nal_unit_header_svc_extension
+{
+	int idr_flag;
+	int priority_id;
+	int no_inter_layer_pred_flag;
+	int dependency_id;
+	int quality_id;
+	int temporal_id;
+	int use_ref_base_pic_flag;
+	int discardable_flag;
+	int output_flag;
+	int reserved_three_2bits;
+};
+
+int h264_parse_nal_unit_header_svc_extension(struct h264_nal_unit_header_svc_extension* svc, BYTE* data, UINT32 size)
+{
+	BYTE* p = data;
+
+	svc->idr_flag = (*p >> 6) & 0x1;
+	svc->priority_id = *p & 0x3F;
+	p++;
+
+	svc->no_inter_layer_pred_flag = (*p >> 7) & 0x1;
+	svc->dependency_id = (*p >> 4) & 0x7;
+	svc->quality_id = *p & 0xF;
+	p++;
+
+	svc->temporal_id = (*p >> 5) & 0x7;
+	svc->use_ref_base_pic_flag = (*p >> 4) & 0x1;
+	svc->discardable_flag = (*p >> 3) & 0x1;
+	svc->output_flag = (*p >> 2) & 0x1;
+	svc->reserved_three_2bits = *p & 0x3;
+	p++;
+
+	return 1;
+}
+
+/*
  *
  * nal_unit_header_mvc_extension() {
  * 	non_idr_flag			u(1)
@@ -1965,7 +2078,40 @@ int h264_parse_picture_parameter_set(struct h264_picture_parameter_set* pps, BYT
  * 	inter_view_flag			u(1)
  * 	reserved_one_bit		u(1)
  * }
- *
+ */
+
+struct h264_nal_unit_header_mvc_extension
+{
+	int non_idr_flag;
+	int priority_id;
+	int view_id;
+	int temporal_id;
+	int anchor_pic_flag;
+	int inter_view_flag;
+	int reserved_one_bit;
+};
+
+int h264_parse_nal_unit_header_mvc_extension(struct h264_nal_unit_header_mvc_extension* mvc, BYTE* data, UINT32 size)
+{
+	BYTE* p = data;
+
+	mvc->non_idr_flag = (*p >> 6) & 0x1;
+	mvc->priority_id = *p & 0x3F;
+	p++;
+
+	mvc->view_id = (p[0] << 8) + (p[1] >> 6);
+	p++;
+
+	mvc->temporal_id = (*p >> 3) & 0x7;
+	mvc->anchor_pic_flag = (*p >> 2) & 0x1;
+	mvc->inter_view_flag = (*p >> 1) & 0x1;
+	mvc->reserved_one_bit = *p & 0x1;
+	p++;
+
+	return 1;
+}
+
+/*
  * nal_unit(NumBytesInNALunit) {
  * 	forbidden_zero_bit		f(1)
  * 	nal_ref_idc			u(2)
@@ -2005,19 +2151,33 @@ int h264_parse_picture_parameter_set(struct h264_picture_parameter_set* pps, BYT
  *
  */
 
-int h264_parse_byte_stream(BYTE* pSrcData, UINT32 SrcSize)
+struct h264_byte_stream_nal_unit
+{
+	int ref_idc;
+	int unit_type;
+	int unit_size;
+	int header_size;
+	BYTE* header_data;
+	int body_size;
+	BYTE* body_data;
+	int svc_extension_flag;
+	struct h264_nal_unit_header_svc_extension svc;
+	struct h264_nal_unit_header_mvc_extension mvc;
+};
+
+int h264_parse(H264_CONTEXT* h264, BYTE* data, UINT32 size)
 {
 	BYTE* d;
-	int nal_ref_idc;
-	int nal_unit_type;
+	BYTE* p = data;
+	BYTE* e = &p[size];
 	int nal_unit_index;
-	int svc_extension_flag;
-	int nal_unit_header_bytes;
-	int num_bytes_in_nal_unit;
-	BYTE* p = pSrcData;
-	BYTE* e = &p[SrcSize];
+	int nal_unit_count;
+	struct h264_byte_stream_nal_unit* nal;
+	struct h264_byte_stream_nal_unit* nal_units;
+	struct h264_byte_stream_nal_unit s_nal_units[16];
 
-	g_LZCNT = IsProcessorFeaturePresentEx(PF_EX_LZCNT);
+	nal_unit_count = 16;
+	nal_units = s_nal_units;
 
 	if ((e - p) < 4)
 		return -1;
@@ -2033,8 +2193,33 @@ int h264_parse_byte_stream(BYTE* pSrcData, UINT32 SrcSize)
 			return -1;
 	}
 
-	for (nal_unit_index = 0; nal_unit_index < 20; nal_unit_index++)
+	for (nal_unit_index = 0; p < e; nal_unit_index++)
 	{
+		if (nal_unit_index >= nal_unit_count)
+		{
+			if (nal_units == s_nal_units)
+			{
+				nal_units = malloc(nal_unit_count * sizeof(struct h264_byte_stream_nal_unit) * 2);
+
+				if (!nal_units)
+					return -1;
+
+				CopyMemory(nal_units, s_nal_units, nal_unit_count * sizeof(struct h264_byte_stream_nal_unit));
+				nal_unit_count *= 2;
+			}
+			else
+			{
+				nal_units = realloc(nal_units, nal_unit_count * sizeof(struct h264_byte_stream_nal_unit) * 2);
+
+				if (!nal_units)
+					return -1;
+
+				nal_unit_count *= 2;
+			}
+		}
+
+		nal = &nal_units[nal_unit_index];
+
 		if ((e - p) < 3)
 			return -1;
 
@@ -2051,6 +2236,8 @@ int h264_parse_byte_stream(BYTE* pSrcData, UINT32 SrcSize)
 
 		p += 3; /* start_code_prefix_one_3bytes, 0x000001 */
 
+		nal->header_data = p;
+
 		d = p;
 
 		while ((!((d[0] == 0) && (d[1] == 0) && (d[2] == 1))) &&
@@ -2062,105 +2249,85 @@ int h264_parse_byte_stream(BYTE* pSrcData, UINT32 SrcSize)
 			d++;
 		}
 
-		num_bytes_in_nal_unit = d - p;
+		nal->unit_size = d - p;
 
 		d = p;
 
 		if (*p & 0x80)
 			return -1; /* forbidden_zero_bit */
 
-		nal_ref_idc = *p >> 5;
-		nal_unit_type = *p & 0x1F;
+		nal->ref_idc = *p >> 5;
+		nal->unit_type = *p & 0x1F;
 		p++;
 
-		nal_unit_header_bytes = 1;
+		nal->header_size = 1;
 
-		if ((nal_unit_type == 14) || (nal_unit_type == 20))
+		if ((nal->unit_type == 14) || (nal->unit_type == 20))
 		{
 			if ((e - p) < 3)
 				return -1;
 
-			svc_extension_flag = (*p >> 7) & 0x1;
+			nal->svc_extension_flag = (*p >> 7) & 0x1;
 
-			if (svc_extension_flag)
+			if (nal->svc_extension_flag)
 			{
-				int idr_flag;
-				int priority_id;
-				int no_inter_layer_pred_flag;
-				int dependency_id;
-				int quality_id;
-				int temporal_id;
-				int use_ref_base_pic_flag;
-				int discardable_flag;
-				int output_flag;
-				int reserved_three_2bits;
-
-				idr_flag = (*p >> 6) & 0x1;
-				priority_id = *p & 0x3F;
-				p++;
-
-				no_inter_layer_pred_flag = (*p >> 7) & 0x1;
-				dependency_id = (*p >> 4) & 0x7;
-				quality_id = *p & 0xF;
-				p++;
-
-				temporal_id = (*p >> 5) & 0x7;
-				use_ref_base_pic_flag = (*p >> 4) & 0x1;
-				discardable_flag = (*p >> 3) & 0x1;
-				output_flag = (*p >> 2) & 0x1;
-				reserved_three_2bits = *p & 0x3;
-				p++;
+				h264_parse_nal_unit_header_svc_extension(&nal->svc, p, 3);
 			}
 			else
 			{
-				int non_idr_flag;
-				int priority_id;
-				int view_id;
-				int temporal_id;
-				int anchor_pic_flag;
-				int inter_view_flag;
-				int reserved_one_bit;
-
-				non_idr_flag = (*p >> 6) & 0x1;
-				priority_id = *p & 0x3F;
-				p++;
-
-				view_id = (p[0] << 8) + (p[1] >> 6);
-				p++;
-
-				temporal_id = (*p >> 3) & 0x7;
-				anchor_pic_flag = (*p >> 2) & 0x1;
-				inter_view_flag = (*p >> 1) & 0x1;
-				reserved_one_bit = *p & 0x1;
-				p++;
+				h264_parse_nal_unit_header_mvc_extension(&nal->mvc, p, 3);
 			}
 
-			nal_unit_header_bytes += 3;
+			nal->header_size += 3;
+			p += 3;
 		}
 
-		if (nal_unit_type == 7) /* sequence parameter set */
-		{
-			struct h264_sequence_parameter_set sps;
-			h264_parse_sequence_parameter_set(&sps, p, num_bytes_in_nal_unit);
-		}
-		else if (nal_unit_type == 8) /* picture parameter set */
-		{
-			struct h264_picture_parameter_set pps;
-			h264_parse_picture_parameter_set(&pps, p, num_bytes_in_nal_unit);
-		}
+		nal->body_data = p;
+		nal->body_size = nal->unit_size - nal->header_size;
 
-		p = d + num_bytes_in_nal_unit;
+		p = nal->header_data + nal->unit_size;
 
 		while ((p < e) && (!(((e - p) >= 3) && (p[0] == 0) && (p[1] == 0) && (p[2] == 1))) &&
 				(!(((e - p) >= 4) && (p[0] == 0) && (p[1] == 0) && (p[2] == 0) && (p[3] == 1))))
 		{
 			p++; /* trailing_zero_bits */
 		}
+	}
+
+	nal_unit_count = nal_unit_index;
+
+	for (nal_unit_index = 0; nal_unit_index < nal_unit_count; nal_unit_index++)
+	{
+		nal = &nal_units[nal_unit_index];
+
+		if (nal->unit_type == 6) /* supplemental enhancement information */
+		{
+			struct h264_supplemental_enhancement_information sei;
+			h264_parse_supplemental_enhancement_information(&sei, nal->body_data, nal->body_size);
+		}
+		else if (nal->unit_type == 7) /* sequence parameter set */
+		{
+			struct h264_sequence_parameter_set sps;
+			h264_parse_sequence_parameter_set(&sps, nal->body_data, nal->body_size);
+		}
+		else if (nal->unit_type == 8) /* picture parameter set */
+		{
+			struct h264_picture_parameter_set pps;
+			h264_parse_picture_parameter_set(&pps, nal->body_data, nal->body_size);
+		}
+		else if (nal->unit_type == 9) /* access unit delimiter */
+		{
+			struct h264_access_unit_delimiter aud;
+			h264_parse_access_unit_delimiter(&aud, nal->body_data, nal->body_size);
+		}
 
 		fprintf(stderr, "[%004d] type: %d ref_idc: %d size: %d name: %s\n",
-				nal_unit_index, nal_unit_type, nal_ref_idc,
-				num_bytes_in_nal_unit, h264_get_nal_unit_name(nal_unit_type));
+				nal_unit_index, nal->unit_type, nal->ref_idc,
+				nal->unit_size, h264_get_nal_unit_name(nal->unit_type));
 	}
+
+	if (nal_units != s_nal_units)
+		free(nal_units);
 
 	return 1;
 }

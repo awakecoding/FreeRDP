@@ -85,7 +85,7 @@ FREERDP_API int h264_context_reset(H264_CONTEXT* h264);
 FREERDP_API H264_CONTEXT* h264_context_new(BOOL Compressor);
 FREERDP_API void h264_context_free(H264_CONTEXT* h264);
 
-FREERDP_API int h264_parse_byte_stream(BYTE* pSrcData, UINT32 SrcSize);
+FREERDP_API int h264_parse(H264_CONTEXT* h264, BYTE* data, UINT32 size);
 
 #ifdef __cplusplus
 }

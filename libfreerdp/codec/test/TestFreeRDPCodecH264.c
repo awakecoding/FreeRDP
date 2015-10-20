@@ -12,6 +12,7 @@ int test_h264_bitstream_parse()
 	BYTE* data;
 	UINT32 size;
 	int status;
+	H264_CONTEXT* h264;
 
 	if (!PathFileExistsA(TEST_H264_FILE))
 		return 1;
@@ -29,7 +30,11 @@ int test_h264_bitstream_parse()
 
 	fread(data, size, 1, fp);
 
-	status = h264_parse_byte_stream(data, size);
+	h264 = h264_context_new(FALSE);
+
+	status = h264_parse(h264, data, size);
+
+	h264_context_free(h264);
 
 	free(data);
 
