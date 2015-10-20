@@ -138,13 +138,22 @@ extern "C" {
 #define BitStream_GetRemainingLength(_bs) \
 	(_bs->length - _bs->position)
 
-	WINPR_API void BitDump(const char* tag, int level, const BYTE* buffer, UINT32 length, UINT32 flags);
-	WINPR_API UINT32 ReverseBits32(UINT32 bits, UINT32 nbits);
+#define BitStream_Read_Bits(_bs, _bits, _nbits) do { \
+		_bits = (_bs->accumulator >> (32 - _nbits)); \
+		BitStream_Shift(_bs, _nbits); \
+	} while(0)
 
-	WINPR_API void BitStream_Attach(wBitStream* bs, const BYTE* buffer, UINT32 capacity);
+#define BitStream_Align(_bs, _nbits) do { \
+	if (_bs->position % _nbits) BitStream_Shift(_bs, (_nbits - (_bs->position % _nbits))); \
+	} while(0)
 
-	WINPR_API wBitStream* BitStream_New();
-	WINPR_API void BitStream_Free(wBitStream* bs);
+WINPR_API void BitDump(const char* tag, int level, const BYTE* buffer, UINT32 length, UINT32 flags);
+WINPR_API UINT32 ReverseBits32(UINT32 bits, UINT32 nbits);
+
+WINPR_API void BitStream_Attach(wBitStream* bs, const BYTE* buffer, UINT32 capacity);
+
+WINPR_API wBitStream* BitStream_New();
+WINPR_API void BitStream_Free(wBitStream* bs);
 
 #ifdef __cplusplus
 }

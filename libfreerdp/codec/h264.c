@@ -23,6 +23,8 @@
 
 #include <winpr/crt.h>
 #include <winpr/print.h>
+#include <winpr/intrin.h>
+#include <winpr/sysinfo.h>
 #include <winpr/stream.h>
 #include <winpr/bitstream.h>
 
@@ -1560,6 +1562,11 @@ void h264_context_free(H264_CONTEXT* h264)
 }
 
 /**
+ * h.264 data packets to 'realtime' playback/preview using Apple's VideoToolbox
+ * http://stackoverflow.com/a/25086313/497548
+ */
+
+/**
  * Network Abstraction Layer Units (NALs)
  *
  * 0		Unspecified                                                    non-VCL
@@ -1626,6 +1633,313 @@ const char* h264_get_nal_unit_name(int nal_unit_type)
 	}
 
 	return "Unknown";
+}
+
+static BOOL g_LZCNT = FALSE;
+
+static INLINE UINT32 lzcnt_s(UINT32 x)
+{
+	if (!x)
+		return 32;
+
+	if (!g_LZCNT)
+	{
+		UINT32 y;
+		int n = 32;
+		y = x >> 16;  if (y != 0) { n = n - 16; x = y; }
+		y = x >>  8;  if (y != 0) { n = n -  8; x = y; }
+		y = x >>  4;  if (y != 0) { n = n -  4; x = y; }
+		y = x >>  2;  if (y != 0) { n = n -  2; x = y; }
+		y = x >>  1;  if (y != 0) return n - 2;
+		return n - x;
+	}
+
+	return __lzcnt(x);
+}
+
+int h264_parse_exp_golomb_code(wBitStream* bs)
+{
+	int vk;
+	int cnt;
+	int nbits;
+	int code;
+
+	cnt = lzcnt_s(bs->accumulator);
+
+	nbits = BitStream_GetRemainingLength(bs);
+
+	if (cnt > nbits)
+		cnt = nbits;
+
+	vk = cnt;
+
+	while ((cnt == 32) && (BitStream_GetRemainingLength(bs) > 0))
+	{
+		BitStream_Shift32(bs);
+
+		cnt = lzcnt_s(bs->accumulator);
+
+		nbits = BitStream_GetRemainingLength(bs);
+
+		if (cnt > nbits)
+			cnt = nbits;
+
+		vk += cnt;
+	}
+
+	if (vk > 0)
+	{
+		BitStream_Shift(bs, (vk % 32));
+		BitStream_Shift(bs, 1);
+		BitStream_Read_Bits(bs, code, vk);
+		code += (1 << vk) - 1;
+	}
+	else
+	{
+		BitStream_Shift(bs, 1);
+		code = 0;
+	}
+
+	return code;
+}
+
+struct h264_sequence_parameter_set
+{
+	int profile_idc;
+	int constraint_set0_flag;
+	int constraint_set1_flag;
+	int constraint_set2_flag;
+	int constraint_set3_flag;
+	int constraint_set4_flag;
+	int constraint_set5_flag;
+	int reserved_zero_2bits;
+	int level_idc;
+	int seq_parameter_set_id;
+
+	int chroma_format_idc;
+	int separate_colour_plane_flag;
+	int bit_depth_luma_minus8;
+	int bit_depth_chroma_minus8;
+	int qpprime_y_zero_transform_bypass_flag;
+	int seq_scaling_matrix_present_flag;
+
+	int log2_max_frame_num_minus4;
+	int pic_order_cnt_type;
+	int log2_max_pic_order_cnt_lsb_minus4;
+	int delta_pic_order_always_zero_flag;
+	int offset_for_non_ref_pic;
+	int offset_for_top_to_bottom_field;
+	int num_ref_frames_in_pic_order_cnt_cycle;
+
+	int max_num_ref_frames;
+	int gaps_in_frame_num_value_allowed_flag;
+	int pic_width_in_mbs_minus1;
+	int pic_height_in_map_units_minus1;
+	int frame_mbs_only_flag;
+	int mb_adaptive_frame_field_flag;
+	int direct_8x8_inference_flag;
+
+	int frame_cropping_flag;
+	int frame_crop_left_offset;
+	int frame_crop_right_offset;
+	int frame_crop_top_offset;
+	int frame_crop_bottom_offset;
+
+	int vui_parameters_present_flag;
+};
+
+int h264_parse_sequence_parameter_set(struct h264_sequence_parameter_set* sps, BYTE* data, UINT32 size)
+{
+	int i;
+	wBitStream s_bs;
+	wBitStream* bs = &s_bs;
+
+	ZeroMemory(sps, sizeof(struct h264_sequence_parameter_set));
+
+	BitStream_Attach(bs, data, size);
+	BitStream_Fetch(bs);
+
+	BitStream_Read_Bits(bs, sps->profile_idc, 8);
+	BitStream_Read_Bits(bs, sps->constraint_set0_flag, 1);
+	BitStream_Read_Bits(bs, sps->constraint_set1_flag, 1);
+	BitStream_Read_Bits(bs, sps->constraint_set2_flag, 1);
+	BitStream_Read_Bits(bs, sps->constraint_set3_flag, 1);
+	BitStream_Read_Bits(bs, sps->constraint_set4_flag, 1);
+	BitStream_Read_Bits(bs, sps->constraint_set5_flag, 1);
+	BitStream_Read_Bits(bs, sps->reserved_zero_2bits, 2);
+	BitStream_Read_Bits(bs, sps->level_idc, 8);
+
+	sps->seq_parameter_set_id = h264_parse_exp_golomb_code(bs);
+
+	if (sps->profile_idc == 100 || sps->profile_idc == 110 || sps->profile_idc == 122 ||
+			sps->profile_idc == 244 || sps->profile_idc == 44 || sps->profile_idc == 83 ||
+			sps->profile_idc == 86 || sps->profile_idc == 118 || sps->profile_idc == 128)
+	{
+		sps->chroma_format_idc = h264_parse_exp_golomb_code(bs);
+
+		if (sps->chroma_format_idc == 3)
+			BitStream_Read_Bits(bs, sps->separate_colour_plane_flag, 1);
+
+		sps->bit_depth_luma_minus8 = h264_parse_exp_golomb_code(bs);
+		sps->bit_depth_chroma_minus8 = h264_parse_exp_golomb_code(bs);
+
+		BitStream_Read_Bits(bs, sps->qpprime_y_zero_transform_bypass_flag, 1);
+		BitStream_Read_Bits(bs, sps->seq_scaling_matrix_present_flag, 1);
+
+		if (sps->seq_scaling_matrix_present_flag)
+		{
+			for (i = 0; i < ((sps->chroma_format_idc != 3) ? 8 : 12); i++)
+			{
+				/* seq_scaling_list_present_flag[i] */
+				BitStream_Shift(bs, 1);
+			}
+		}
+	}
+
+	sps->log2_max_frame_num_minus4 = h264_parse_exp_golomb_code(bs);
+	sps->pic_order_cnt_type = h264_parse_exp_golomb_code(bs);
+
+	if (sps->pic_order_cnt_type == 0)
+	{
+		sps->log2_max_pic_order_cnt_lsb_minus4 = h264_parse_exp_golomb_code(bs);
+	}
+	else if (sps->pic_order_cnt_type == 1)
+	{
+		BitStream_Read_Bits(bs, sps->delta_pic_order_always_zero_flag, 1);
+		sps->offset_for_non_ref_pic = h264_parse_exp_golomb_code(bs);
+		sps->offset_for_top_to_bottom_field = h264_parse_exp_golomb_code(bs);
+		sps->num_ref_frames_in_pic_order_cnt_cycle = h264_parse_exp_golomb_code(bs);
+
+		for (i = 0; i < sps->num_ref_frames_in_pic_order_cnt_cycle; i++)
+		{
+			/* offset_for_ref_frame[i] */
+			h264_parse_exp_golomb_code(bs);
+		}
+	}
+
+	sps->max_num_ref_frames = h264_parse_exp_golomb_code(bs);
+	BitStream_Read_Bits(bs, sps->gaps_in_frame_num_value_allowed_flag, 1);
+	sps->pic_width_in_mbs_minus1 = h264_parse_exp_golomb_code(bs);
+	sps->pic_height_in_map_units_minus1 = h264_parse_exp_golomb_code(bs);
+	BitStream_Read_Bits(bs, sps->frame_mbs_only_flag, 1);
+
+	if (!sps->frame_mbs_only_flag)
+		BitStream_Read_Bits(bs, sps->mb_adaptive_frame_field_flag, 1);
+
+	BitStream_Read_Bits(bs, sps->direct_8x8_inference_flag, 1);
+	BitStream_Read_Bits(bs, sps->frame_cropping_flag, 1);
+
+	if (sps->frame_cropping_flag)
+	{
+		sps->frame_crop_left_offset = h264_parse_exp_golomb_code(bs);
+		sps->frame_crop_right_offset = h264_parse_exp_golomb_code(bs);
+		sps->frame_crop_top_offset = h264_parse_exp_golomb_code(bs);
+		sps->frame_crop_bottom_offset = h264_parse_exp_golomb_code(bs);
+	}
+
+	BitStream_Read_Bits(bs, sps->vui_parameters_present_flag, 1);
+
+	if (sps->vui_parameters_present_flag)
+	{
+
+	}
+
+	return 1;
+}
+
+struct h264_picture_parameter_set
+{
+	int pic_parameter_set_id;
+	int seq_parameter_set_id;
+	int entropy_coding_mode_flag;
+	int bottom_field_pic_order_in_frame_present_flag;
+	int num_slice_groups_minus1;
+	int slice_group_map_type;
+	int slice_group_change_direction_flag;
+	int slice_group_change_rate_minus1;
+	int pic_size_in_map_units_minus1;
+
+	int num_ref_idx_l0_default_active_minus1;
+	int num_ref_idx_l1_default_active_minus1;
+	int weighted_pred_flag;
+	int weighted_bipred_idc;
+	int pic_init_qp_minus26;
+	int pic_init_qs_minus26;
+	int chroma_qp_index_offset;
+	int deblocking_filter_control_present_flag;
+	int constrained_intra_pred_flag;
+	int redundant_pic_cnt_present_flag;
+
+	int transform_8x8_mode_flag;
+	int pic_scaling_matrix_present_flag;
+	int second_chroma_qp_index_offset;
+};
+
+int h264_parse_picture_parameter_set(struct h264_picture_parameter_set* pps, BYTE* data, UINT32 size)
+{
+	int i, iGroup;
+	wBitStream s_bs;
+	wBitStream* bs = &s_bs;
+
+	ZeroMemory(pps, sizeof(struct h264_picture_parameter_set));
+
+	BitStream_Attach(bs, data, size);
+	BitStream_Fetch(bs);
+
+	pps->pic_parameter_set_id = h264_parse_exp_golomb_code(bs);
+	pps->seq_parameter_set_id = h264_parse_exp_golomb_code(bs);
+	BitStream_Read_Bits(bs, pps->entropy_coding_mode_flag, 1);
+	BitStream_Read_Bits(bs, pps->bottom_field_pic_order_in_frame_present_flag, 1);
+	pps->num_slice_groups_minus1 = h264_parse_exp_golomb_code(bs);
+
+	if (pps->num_slice_groups_minus1 > 0)
+	{
+		pps->slice_group_map_type = h264_parse_exp_golomb_code(bs);
+
+		if (pps->slice_group_map_type == 0)
+		{
+			for (iGroup = 0; iGroup < pps->num_slice_groups_minus1; iGroup++)
+			{
+				h264_parse_exp_golomb_code(bs); /* run_length_minus1[iGroup] */
+			}
+		}
+		else if (pps->slice_group_map_type == 2)
+		{
+			for (iGroup = 0; iGroup < pps->num_slice_groups_minus1; iGroup++)
+			{
+				h264_parse_exp_golomb_code(bs); /* top_left[iGroup] */
+				h264_parse_exp_golomb_code(bs); /* bottom_right[iGroup] */
+			}
+		}
+		else if ((pps->slice_group_map_type == 3) || (pps->slice_group_map_type == 4) ||
+				(pps->slice_group_map_type == 5))
+		{
+			BitStream_Read_Bits(bs, pps->slice_group_change_direction_flag, 1);
+			pps->slice_group_change_rate_minus1 = h264_parse_exp_golomb_code(bs);
+		}
+		else if (pps->slice_group_map_type == 6)
+		{
+			pps->pic_size_in_map_units_minus1 = h264_parse_exp_golomb_code(bs);
+
+			for (i = 0; i < pps->pic_size_in_map_units_minus1; i++)
+			{
+				h264_parse_exp_golomb_code(bs); /* slice_group_id[i] */
+			}
+		}
+	}
+
+	pps->num_ref_idx_l0_default_active_minus1 = h264_parse_exp_golomb_code(bs);
+	pps->num_ref_idx_l1_default_active_minus1 = h264_parse_exp_golomb_code(bs);
+	BitStream_Read_Bits(bs, pps->weighted_pred_flag, 1);
+	BitStream_Read_Bits(bs, pps->weighted_bipred_idc, 2);
+	pps->pic_init_qp_minus26 = h264_parse_exp_golomb_code(bs);
+	pps->pic_init_qs_minus26 = h264_parse_exp_golomb_code(bs);
+	pps->chroma_qp_index_offset = h264_parse_exp_golomb_code(bs);
+	BitStream_Read_Bits(bs, pps->deblocking_filter_control_present_flag, 1);
+	BitStream_Read_Bits(bs, pps->constrained_intra_pred_flag, 1);
+	BitStream_Read_Bits(bs, pps->redundant_pic_cnt_present_flag, 1);
+
+	return 1;
 }
 
 /*
@@ -1703,6 +2017,8 @@ int h264_parse_byte_stream(BYTE* pSrcData, UINT32 SrcSize)
 	BYTE* p = pSrcData;
 	BYTE* e = &p[SrcSize];
 
+	g_LZCNT = IsProcessorFeaturePresentEx(PF_EX_LZCNT);
+
 	if ((e - p) < 4)
 		return -1;
 
@@ -1755,6 +2071,7 @@ int h264_parse_byte_stream(BYTE* pSrcData, UINT32 SrcSize)
 
 		nal_ref_idc = *p >> 5;
 		nal_unit_type = *p & 0x1F;
+		p++;
 
 		nal_unit_header_bytes = 1;
 
@@ -1819,6 +2136,17 @@ int h264_parse_byte_stream(BYTE* pSrcData, UINT32 SrcSize)
 			}
 
 			nal_unit_header_bytes += 3;
+		}
+
+		if (nal_unit_type == 7) /* sequence parameter set */
+		{
+			struct h264_sequence_parameter_set sps;
+			h264_parse_sequence_parameter_set(&sps, p, num_bytes_in_nal_unit);
+		}
+		else if (nal_unit_type == 8) /* picture parameter set */
+		{
+			struct h264_picture_parameter_set pps;
+			h264_parse_picture_parameter_set(&pps, p, num_bytes_in_nal_unit);
 		}
 
 		p = d + num_bytes_in_nal_unit;
