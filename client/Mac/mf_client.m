@@ -33,6 +33,7 @@
 BOOL mfreerdp_client_global_init()
 {
 	freerdp_handle_signals();
+	mac_h264_init();
 	return TRUE;
 }
 

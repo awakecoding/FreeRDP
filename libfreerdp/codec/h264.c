@@ -1392,7 +1392,7 @@ int h264_decompress(H264_CONTEXT* h264, BYTE* pSrcData, UINT32 SrcSize,
 	BYTE* pYUVPoint[3];
 	RDPGFX_RECT16* rect;
 	primitives_t* prims = primitives_get();
-
+	
 	if (!h264)
 		return -1001;
 
@@ -1503,8 +1503,21 @@ error_1:
 	return status;
 }
 
+static H264_CONTEXT_SUBSYSTEM* g_Subsystem_Custom = NULL;
+
+void h264_set_custom_subsystem(H264_CONTEXT_SUBSYSTEM* sys)
+{
+	g_Subsystem_Custom = sys;
+}
+
 BOOL h264_context_init(H264_CONTEXT* h264)
 {
+	if (g_Subsystem_Custom && g_Subsystem_Custom->Init(h264))
+	{
+		h264->subsystem = g_Subsystem_Custom;
+		return TRUE;
+	}
+	
 #if defined(_WIN32) && defined(WITH_MEDIA_FOUNDATION)
 	if (g_Subsystem_MF.Init(h264))
 	{
@@ -1706,12 +1719,6 @@ int h264_parse_exp_golomb_code(wBitStream* bs)
 	return code;
 }
 
-struct h264_supplemental_enhancement_information
-{
-	int payloadType;
-	int payloadSize;
-};
-
 int h264_parse_supplemental_enhancement_information(struct h264_supplemental_enhancement_information* sei, BYTE* data, UINT32 size)
 {
 	BYTE* p = data;
@@ -1765,51 +1772,6 @@ int h264_parse_supplemental_enhancement_information(struct h264_supplemental_enh
 
 	return 1;
 }
-
-struct h264_sequence_parameter_set
-{
-	int profile_idc;
-	int constraint_set0_flag;
-	int constraint_set1_flag;
-	int constraint_set2_flag;
-	int constraint_set3_flag;
-	int constraint_set4_flag;
-	int constraint_set5_flag;
-	int reserved_zero_2bits;
-	int level_idc;
-	int seq_parameter_set_id;
-
-	int chroma_format_idc;
-	int separate_colour_plane_flag;
-	int bit_depth_luma_minus8;
-	int bit_depth_chroma_minus8;
-	int qpprime_y_zero_transform_bypass_flag;
-	int seq_scaling_matrix_present_flag;
-
-	int log2_max_frame_num_minus4;
-	int pic_order_cnt_type;
-	int log2_max_pic_order_cnt_lsb_minus4;
-	int delta_pic_order_always_zero_flag;
-	int offset_for_non_ref_pic;
-	int offset_for_top_to_bottom_field;
-	int num_ref_frames_in_pic_order_cnt_cycle;
-
-	int max_num_ref_frames;
-	int gaps_in_frame_num_value_allowed_flag;
-	int pic_width_in_mbs_minus1;
-	int pic_height_in_map_units_minus1;
-	int frame_mbs_only_flag;
-	int mb_adaptive_frame_field_flag;
-	int direct_8x8_inference_flag;
-
-	int frame_cropping_flag;
-	int frame_crop_left_offset;
-	int frame_crop_right_offset;
-	int frame_crop_top_offset;
-	int frame_crop_bottom_offset;
-
-	int vui_parameters_present_flag;
-};
 
 int h264_parse_sequence_parameter_set(struct h264_sequence_parameter_set* sps, BYTE* data, UINT32 size)
 {
@@ -1908,34 +1870,6 @@ int h264_parse_sequence_parameter_set(struct h264_sequence_parameter_set* sps, B
 	return 1;
 }
 
-struct h264_picture_parameter_set
-{
-	int pic_parameter_set_id;
-	int seq_parameter_set_id;
-	int entropy_coding_mode_flag;
-	int bottom_field_pic_order_in_frame_present_flag;
-	int num_slice_groups_minus1;
-	int slice_group_map_type;
-	int slice_group_change_direction_flag;
-	int slice_group_change_rate_minus1;
-	int pic_size_in_map_units_minus1;
-
-	int num_ref_idx_l0_default_active_minus1;
-	int num_ref_idx_l1_default_active_minus1;
-	int weighted_pred_flag;
-	int weighted_bipred_idc;
-	int pic_init_qp_minus26;
-	int pic_init_qs_minus26;
-	int chroma_qp_index_offset;
-	int deblocking_filter_control_present_flag;
-	int constrained_intra_pred_flag;
-	int redundant_pic_cnt_present_flag;
-
-	int transform_8x8_mode_flag;
-	int pic_scaling_matrix_present_flag;
-	int second_chroma_qp_index_offset;
-};
-
 int h264_parse_picture_parameter_set(struct h264_picture_parameter_set* pps, BYTE* data, UINT32 size)
 {
 	int i, iGroup;
@@ -2003,11 +1937,6 @@ int h264_parse_picture_parameter_set(struct h264_picture_parameter_set* pps, BYT
 	return 1;
 }
 
-struct h264_access_unit_delimiter
-{
-	int primary_pic_type;
-};
-
 int h264_parse_access_unit_delimiter(struct h264_access_unit_delimiter* aud, BYTE* data, UINT32 size)
 {
 	BYTE* p = data;
@@ -2029,20 +1958,6 @@ int h264_parse_access_unit_delimiter(struct h264_access_unit_delimiter* aud, BYT
  * 	reserved_three_2bits		u(2)
  * }
  */
-
-struct h264_nal_unit_header_svc_extension
-{
-	int idr_flag;
-	int priority_id;
-	int no_inter_layer_pred_flag;
-	int dependency_id;
-	int quality_id;
-	int temporal_id;
-	int use_ref_base_pic_flag;
-	int discardable_flag;
-	int output_flag;
-	int reserved_three_2bits;
-};
 
 int h264_parse_nal_unit_header_svc_extension(struct h264_nal_unit_header_svc_extension* svc, BYTE* data, UINT32 size)
 {
@@ -2079,17 +1994,6 @@ int h264_parse_nal_unit_header_svc_extension(struct h264_nal_unit_header_svc_ext
  * 	reserved_one_bit		u(1)
  * }
  */
-
-struct h264_nal_unit_header_mvc_extension
-{
-	int non_idr_flag;
-	int priority_id;
-	int view_id;
-	int temporal_id;
-	int anchor_pic_flag;
-	int inter_view_flag;
-	int reserved_one_bit;
-};
 
 int h264_parse_nal_unit_header_mvc_extension(struct h264_nal_unit_header_mvc_extension* mvc, BYTE* data, UINT32 size)
 {
@@ -2150,20 +2054,6 @@ int h264_parse_nal_unit_header_mvc_extension(struct h264_nal_unit_header_mvc_ext
  * }
  *
  */
-
-struct h264_byte_stream_nal_unit
-{
-	int ref_idc;
-	int unit_type;
-	int unit_size;
-	int header_size;
-	BYTE* header_data;
-	int body_size;
-	BYTE* body_data;
-	int svc_extension_flag;
-	struct h264_nal_unit_header_svc_extension svc;
-	struct h264_nal_unit_header_mvc_extension mvc;
-};
 
 int h264_parse(H264_CONTEXT* h264, BYTE* data, UINT32 size)
 {
@@ -2330,4 +2220,128 @@ int h264_parse(H264_CONTEXT* h264, BYTE* data, UINT32 size)
 		free(nal_units);
 
 	return 1;
+}
+
+int h264_parse_nal_units(H264_CONTEXT* h264, BYTE* data, UINT32 size, struct h264_byte_stream_nal_unit** p_nal_units)
+{
+	BYTE* d;
+	BYTE* p = data;
+	BYTE* e = &p[size];
+	int nal_unit_index;
+	int nal_unit_count;
+	struct h264_byte_stream_nal_unit* nal;
+	struct h264_byte_stream_nal_unit* nal_units;
+	
+	if ((e - p) < 4)
+		return -1;
+	
+	while (!((p[0] == 0) && (p[1] == 0) && (p[2] == 0) && (p[3] == 1)))
+	{
+		if (*p != 0)
+			return -1;
+		
+		p++; /* leading_zero_bits, 0x00 */
+		
+		if ((e - p) < 4)
+			return -1;
+	}
+	
+	nal_unit_count = 16;
+	nal_units = malloc(nal_unit_count * sizeof(struct h264_byte_stream_nal_unit));
+	
+	if (!nal_units)
+		return -1;
+	
+	for (nal_unit_index = 0; p < e; nal_unit_index++)
+	{
+		if (nal_unit_index >= nal_unit_count)
+		{
+			nal_units = realloc(nal_units, nal_unit_count * sizeof(struct h264_byte_stream_nal_unit) * 2);
+				
+			if (!nal_units)
+				return -1;
+				
+			nal_unit_count *= 2;
+		}
+		
+		nal = &nal_units[nal_unit_index];
+		
+		if ((e - p) < 3)
+			return -1;
+		
+		if (!((p[0] == 0) && (p[1] == 0) && (p[2] == 1)))
+		{
+			p++; /* zero_byte, 0x00 */
+			
+			if (p >= e)
+				return -1;
+		}
+		
+		if ((e - p) < 3)
+			return -1;
+		
+		p += 3; /* start_code_prefix_one_3bytes, 0x000001 */
+		
+		nal->header_data = p;
+		
+		d = p;
+		
+		while ((!((d[0] == 0) && (d[1] == 0) && (d[2] == 1))) &&
+		       (!((d[0] == 0) && (d[1] == 0) && (d[2] == 0))))
+		{
+			if (d >= e)
+				break;
+			
+			d++;
+		}
+		
+		nal->unit_size = d - p;
+		
+		d = p;
+		
+		if (*p & 0x80)
+			return -1; /* forbidden_zero_bit */
+		
+		nal->ref_idc = *p >> 5;
+		nal->unit_type = *p & 0x1F;
+		p++;
+		
+		nal->header_size = 1;
+		
+		if ((nal->unit_type == 14) || (nal->unit_type == 20))
+		{
+			if ((e - p) < 3)
+				return -1;
+			
+			nal->svc_extension_flag = (*p >> 7) & 0x1;
+			
+			if (nal->svc_extension_flag)
+			{
+				h264_parse_nal_unit_header_svc_extension(&nal->svc, p, 3);
+			}
+			else
+			{
+				h264_parse_nal_unit_header_mvc_extension(&nal->mvc, p, 3);
+			}
+			
+			nal->header_size += 3;
+			p += 3;
+		}
+		
+		nal->body_data = p;
+		nal->body_size = nal->unit_size - nal->header_size;
+		
+		p = nal->header_data + nal->unit_size;
+		
+		while ((p < e) && (!(((e - p) >= 3) && (p[0] == 0) && (p[1] == 0) && (p[2] == 1))) &&
+		       (!(((e - p) >= 4) && (p[0] == 0) && (p[1] == 0) && (p[2] == 0) && (p[3] == 1))))
+		{
+			p++; /* trailing_zero_bits */
+		}
+	}
+	
+	nal_unit_count = nal_unit_index;
+	*p_nal_units = nal_units;
+	
+	return nal_unit_count;
 }

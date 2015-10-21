@@ -93,4 +93,6 @@ struct mf_context
 	int yMaxScroll;       // maximum vertical scroll value
 };
 
+void mac_h264_init();
+
 #endif // MFREERDP_H
