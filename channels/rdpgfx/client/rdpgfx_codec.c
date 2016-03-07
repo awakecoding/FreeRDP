@@ -179,8 +179,8 @@ static UINT rdpgfx_decode_AVC444(RDPGFX_PLUGIN* gfx, RDPGFX_SURFACE_COMMAND* cmd
 {
 	UINT error;
 	UINT32 tmp;
-	size_t pos1, pos2;
 	wStream* s;
+	size_t pos1, pos2;
 	RDPGFX_AVC444_BITMAP_STREAM h264;
 	RdpgfxClientContext* context = (RdpgfxClientContext*) gfx->iface.pInterface;
 
@@ -199,22 +199,30 @@ static UINT rdpgfx_decode_AVC444(RDPGFX_PLUGIN* gfx, RDPGFX_SURFACE_COMMAND* cmd
 	h264.cbAvc420EncodedBitstream1 = tmp & 0x3FFFFFFFUL;
 	h264.LC = (tmp >> 30UL) & 0x03UL;
 
-	if (h264.LC == 0x03)
+	if (h264.LC == 3) /* an invalid state that must not occur */
 		return ERROR_INVALID_DATA;
 
 	pos1 = Stream_GetPosition(s);
+
 	if ((error = rdpgfx_read_h264_metablock(gfx, s, &(h264.bitstream[0].meta))))
 	{
 		WLog_ERR(TAG, "rdpgfx_read_h264_metablock failed with error %lu!", error);
 		return error;
 	}
+
 	pos2 = Stream_GetPosition(s);
 
 	h264.bitstream[0].data = Stream_Pointer(s);
 
 	if (h264.LC == 0)
 	{
+		/**
+		 * A YUV420 frame is contained in the avc420EncodedBitstream1 field,
+		 * and a Chroma420 frame is contained in the avc420EncodedBitstream2 field.
+		 */
+
 		tmp = h264.cbAvc420EncodedBitstream1 - pos2 + pos1;
+
 		if (Stream_GetRemainingLength(s) < tmp)
 			return ERROR_INVALID_DATA;
 
@@ -230,10 +238,25 @@ static UINT rdpgfx_decode_AVC444(RDPGFX_PLUGIN* gfx, RDPGFX_SURFACE_COMMAND* cmd
 		h264.bitstream[1].data = Stream_Pointer(s);
 		h264.bitstream[1].length = Stream_GetRemainingLength(s);
 	}
-	else
+	else if (h264.LC == 1)
 	{
+		/**
+		 * A YUV420 frame is contained in the avc420EncodedBitstream1 field,
+		 * and no data is present in the avc420EncodedBitstream2 field. No Chroma420 frame is present.
+		 */
+
 		h264.bitstream[0].length = Stream_GetRemainingLength(s);
-		memset(&h264.bitstream[1], 0, sizeof(h264.bitstream[1]));
+		ZeroMemory(&h264.bitstream[1], sizeof(h264.bitstream[1]));
+	}
+	else if (h264.LC == 2)
+	{
+		/**
+		 * A Chroma420 frame is contained in the avc420EncodedBitstream1 field,
+		 * and no data is present in the avc420EncodedBitstream2 field. No YUV420 frame is present.
+		 */
+
+		h264.bitstream[0].length = Stream_GetRemainingLength(s);
+		ZeroMemory(&h264.bitstream[1], sizeof(h264.bitstream[1]));
 	}
 
 	Stream_Free(s, FALSE);
@@ -243,6 +266,7 @@ static UINT rdpgfx_decode_AVC444(RDPGFX_PLUGIN* gfx, RDPGFX_SURFACE_COMMAND* cmd
 	if (context)
 	{
 		IFCALLRET(context->SurfaceCommand, error, context, cmd);
+
 		if (error)
 			WLog_ERR(TAG, "context->SurfaceCommand failed with error %lu", error);
 	}

@@ -32,8 +32,8 @@
  * @brief general_YUV420CombineToYUV444
  *	U444(2x,2y) = Um(2x,2y) * 4 - Ua(2x+1,2y) - Ua(2x,2y+1) - Ua(2x+1,2y+1)
  *	V444(2x,2y) = Vm(2x,2y) * 4 - Va(2x+1,2y) - Va(2x,2y+1) - Va(2x+1,2y+1)
- * @param pSrc    Pointer to auxilary YUV420 data
- * @param srcStep Step width in auxilary YUV420 data
+ * @param pSrc    Pointer to auxiliary YUV420 data
+ * @param srcStep Step width in auxiliary YUV420 data
  * @param pDst    Pointer to main YUV420 data
  * @param dstStep Step width in main YUV420 data
  * @param roi     Area information for YUV420 data
@@ -49,20 +49,20 @@ static pstatus_t general_YUV420CombineToYUV444(
 	UINT32 x, y;
 	UINT32 nWidth, nHeight;
 	UINT32 halfWidth, halfHeight;
-	UINT32 quaterWidth, quaterHeight;
+	UINT32 quarterWidth, quarterHeight;
 
 	nWidth = roi->width;
 	nHeight = roi->height;
 	halfWidth = (nWidth + 1) / 2;
 	halfHeight = (nHeight + 1) / 2;
-	quaterWidth = (halfWidth + 1) / 2;
-	quaterHeight = (halfHeight + 1) / 2;
+	quarterWidth = (halfWidth + 1) / 2;
+	quarterHeight = (halfHeight + 1) / 2;
 
 	if (pMainSrc)
 	{
 		/* Y data is already here... */
 		/* B1 */
-		for (y=0; y<nHeight; y++)
+		for (y = 0; y < nHeight; y++)
 		{
 			const BYTE* Ym = pMainSrc[0] + srcMainStep[0] * y;
 			BYTE* pY = pDst[0] + dstStep[0] * y;
@@ -72,57 +72,65 @@ static pstatus_t general_YUV420CombineToYUV444(
 
 		/* The first half of U, V are already here part of this frame. */
 		/* B2 and B3 */
-		for (y=0; y<halfHeight; y++)
+		for (y = 0; y < halfHeight; y++)
 		{
 			const BYTE* Um = pMainSrc[1] + srcMainStep[1] * y;
 			const BYTE* Vm = pMainSrc[2] + srcMainStep[2] * y;
 			BYTE* pU = pDst[1] + dstStep[1] * y * 2;
 			BYTE* pV = pDst[1] + dstStep[2] * y * 2;
 
-			for (x=0; x<halfWidth; x++)
+			for (x = 0; x < halfWidth; x++)
 			{
-				pU[2*x] = Um[x];
-				pV[2*x] = Vm[x];
+				pU[2 * x] = Um[x];
+				pV[2 * x] = Vm[x];
 			}
 		}
+
 		if (!pAuxSrc)
 			return PRIMITIVES_SUCCESS;
-	} else if (!pAuxSrc)
+	}
+	else if (!pAuxSrc)
+	{
 		return -1;
+	}
 
 	/* The second half of U and V is a bit more tricky... */
 	/* B4 */
-	for (y=0; y<quaterHeight; y++)
+	for (y = 0; y < quarterHeight; y++)
 	{
 		const BYTE* Ya = pAuxSrc[0] + srcAuxStep[0] * y;
 		BYTE* pU = pDst[1] + dstStep[1] * y * 2 + 1;
 
-		for (x=0; x<halfWidth; x++)
+		for (x = 0; x < halfWidth; x++)
+		{
 			pU[x] = Ya[x];
+		}
 	}
 
 	/* B5 */
-	for (y=quaterHeight; y<halfHeight; y++)
+	for (y = quarterHeight; y < halfHeight; y++)
 	{
 		const BYTE* Ya = pAuxSrc[0] + srcAuxStep[0] * y;
-		BYTE* pV = pDst[1] + dstStep[2] * (y - quaterHeight) * 2 + 1;
+		BYTE* pV = pDst[1] + dstStep[2] * (y - quarterHeight) * 2 + 1;
 
-		for (x=0; x<halfWidth; x++)
+		for (x = 0; x < halfWidth; x++)
+		{
 			pV[x] = Ya[x];
+		}
 	}
 
 	/* B6 and B7 */
-	for (y=0; y<quaterHeight; y++)
+	for (y = 0; y < quarterHeight; y++)
 	{
 		const BYTE* Ua = pAuxSrc[1] + srcAuxStep[1] * y;
 		const BYTE* Va = pAuxSrc[2] + srcAuxStep[2] * y;
 		BYTE* pU = pDst[1] + dstStep[1] * y * 2;
 		BYTE* pV = pDst[2] + dstStep[2] * y * 2;
 
-		for (x=0; x<quaterWidth; x++)
+		for (x = 0; x < quarterWidth; x++)
 		{
-			pU[2*x+1] = Ua[x];
-			pV[2*x+1] = Va[x];
+			pU[(2 * x) + 1] = Ua[x];
+			pV[(2 * x) + 1] = Va[x];
 		}
 	}
 

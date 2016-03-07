@@ -541,6 +541,7 @@ static UINT gdi_SurfaceCommand_AVC444(rdpGdi* gdi, RdpgfxClientContext* context,
 	avc2 = &bs->bitstream[1];
 	meta1 = &avc1->meta;
 	meta2 = &avc2->meta;
+
 	status = avc444_decompress(surface->codecs->h264, bs->LC,
 				   meta1->regionRects, meta1->numRegionRects,
 				   avc1->data, avc1->length,
