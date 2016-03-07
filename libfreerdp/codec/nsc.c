@@ -266,9 +266,15 @@ static void nsc_profiler_print(NSC_CONTEXT* context)
 	PROFILER_PRINT_FOOTER;
 }
 
-int nsc_context_reset(NSC_CONTEXT* context)
+BOOL nsc_context_reset(NSC_CONTEXT* context, UINT32 width, UINT32 height)
 {
-	return 1;
+	if (!context)
+		return FALSE;
+
+	context->width = width;
+	context->height = height;
+
+	return TRUE;
 }
 
 NSC_CONTEXT* nsc_context_new(void)
@@ -322,6 +328,9 @@ error_priv:
 void nsc_context_free(NSC_CONTEXT* context)
 {
 	int i;
+
+	if (!context)
+		return;
 
 	for (i = 0; i < 4; i++)
 	{

@@ -825,17 +825,22 @@ int clear_decompress(CLEAR_CONTEXT* clear, BYTE* pSrcData, UINT32 SrcSize,
 	return 1;
 }
 
-int clear_compress(CLEAR_CONTEXT* clear, BYTE* pSrcData, UINT32 SrcSize, BYTE** ppDstData, UINT32* pDstSize)
+int clear_compress(CLEAR_CONTEXT* clear, BYTE* pSrcData, UINT32 SrcSize,
+		   BYTE** ppDstData, UINT32* pDstSize)
 {
 	return 1;
 }
 
-int clear_context_reset(CLEAR_CONTEXT* clear)
+BOOL clear_context_reset(CLEAR_CONTEXT* clear)
 {
+	if (!clear)
+		return FALSE;
+
 	clear->seqNumber = 0;
 	clear->VBarStorageCursor = 0;
 	clear->ShortVBarStorageCursor = 0;
-	return 1;
+
+	return TRUE;
 }
 
 CLEAR_CONTEXT* clear_context_new(BOOL Compressor)
@@ -851,29 +856,27 @@ CLEAR_CONTEXT* clear_context_new(BOOL Compressor)
 
 	clear->nsc = nsc_context_new();
 	if (!clear->nsc)
-		goto error_nsc;
+		goto error;
 
 	nsc_context_set_pixel_format(clear->nsc, RDP_PIXEL_FORMAT_R8G8B8);
 
 	clear->TempSize = 512 * 512 * 4;
-	clear->TempBuffer = (BYTE*) malloc(clear->TempSize);
+	clear->TempBuffer = (BYTE*) calloc(1, clear->TempSize);
 	if (!clear->TempBuffer)
-		goto error_temp_buffer;
+		goto error;
 
 	clear_context_reset(clear);
 
 	return clear;
 
-error_temp_buffer:
-	nsc_context_free(clear->nsc);
-error_nsc:
-	free(clear);
+error:
+	clear_context_free(clear);
 	return NULL;
 }
 
 void clear_context_free(CLEAR_CONTEXT* clear)
 {
-	int i;
+	size_t i;
 
 	if (!clear)
 		return;
