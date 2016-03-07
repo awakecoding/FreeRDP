@@ -174,7 +174,7 @@ endif()
 if(WITH_OPENH264)
 	freerdp_definition_add(-DWITH_OPENH264)
 	freerdp_include_directory_add(${OPENH264_INCLUDE_DIR})
-	freerdp_library_add(${OPENH264_LIBRARIES})
+	freerdp_library_add(openh264)
 endif()
 
 if(WITH_LIBAVCODEC)
