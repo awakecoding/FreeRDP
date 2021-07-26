@@ -80,7 +80,9 @@ static INIT_ONCE rfx_rlgr_init_once = INIT_ONCE_STATIC_INIT;
 
 static BOOL CALLBACK rfx_rlgr_init(PINIT_ONCE once, PVOID param, PVOID* context)
 {
+#ifndef _M_ARM64
 	g_LZCNT = IsProcessorFeaturePresentEx(PF_EX_LZCNT);
+#endif
 	return TRUE;
 }
 
@@ -89,8 +91,10 @@ static INLINE UINT32 lzcnt_s(UINT32 x)
 	if (!x)
 		return 32;
 
+#ifndef _M_ARM64
 	if (!g_LZCNT)
 	{
+#endif
 		UINT32 y;
 		int n = 32;
 		y = x >> 16;
@@ -121,9 +125,11 @@ static INLINE UINT32 lzcnt_s(UINT32 x)
 		if (y != 0)
 			return n - 2;
 		return n - x;
+#ifndef _M_ARM64
 	}
 
 	return __lzcnt(x);
+#endif
 }
 
 int rfx_rlgr_decode(RLGR_MODE mode, const BYTE* pSrcData, UINT32 SrcSize, INT16* pDstData,
