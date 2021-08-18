@@ -1,0 +1,4 @@
+
+set(FREERDP_CLIENT_NAME "pfreerdp")
+set(FREERDP_CLIENT_PLATFORM "Packet")
+set(FREERDP_CLIENT_VENDOR "FreeRDP")

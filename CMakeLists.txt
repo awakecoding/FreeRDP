@@ -20,7 +20,7 @@
 
 cmake_minimum_required(VERSION 3.4)
 
-project(FreeRDP C)
+project(FreeRDP C CXX)
 
 if(NOT DEFINED VENDOR)
 	set(VENDOR "FreeRDP" CACHE STRING "FreeRDP package vendor")

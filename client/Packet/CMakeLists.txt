@@ -1,0 +1,26 @@
+set(MODULE_NAME "pfreerdp-client")
+set(MODULE_PREFIX "FREERDP_CLIENT_PACKET")
+
+set(${MODULE_PREFIX}_SRCS
+	RdpDecoder.cpp
+	RdpDecoder.h)
+
+add_library(${MODULE_NAME} SHARED ${${MODULE_PREFIX}_SRCS})
+
+if(WITH_LIBRARY_VERSIONING)
+	set_target_properties(${MODULE_NAME} PROPERTIES VERSION ${FREERDP_VERSION} SOVERSION ${FREERDP_API_VERSION})
+endif()
+
+set(${MODULE_PREFIX}_LIBS freerdp-client freerdp winpr)
+
+target_link_libraries(${MODULE_NAME} ${${MODULE_PREFIX}_LIBS})
+
+install(TARGETS ${MODULE_NAME} DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT libraries)
+
+if(WITH_DEBUG_SYMBOLS AND MSVC AND BUILD_SHARED_LIBS)
+	install(FILES ${CMAKE_PDB_BINARY_DIR}/${MODULE_NAME}.pdb DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT symbols)
+endif()
+
+set_property(TARGET ${MODULE_NAME} PROPERTY FOLDER "Client/Packet")
+
+add_subdirectory(cli)

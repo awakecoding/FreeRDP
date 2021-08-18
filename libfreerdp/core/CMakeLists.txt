@@ -118,6 +118,7 @@ set(${MODULE_PREFIX}_SRCS
 	surface.h
 	transport.c
 	transport.h
+	packet.c
 	update.c
 	update.h
 	message.c

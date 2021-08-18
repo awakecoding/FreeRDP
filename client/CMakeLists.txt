@@ -27,6 +27,8 @@ if(FREERDP_VENDOR AND WITH_CLIENT)
 			add_subdirectory(Sample)
 		endif()
 	endif()
+	
+	add_subdirectory(Packet)
 
 	if(WITH_X11)
 		add_subdirectory(X11)
