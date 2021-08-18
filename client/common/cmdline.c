@@ -3698,6 +3698,15 @@ BOOL freerdp_client_load_addins(rdpChannels* channels, rdpSettings* settings)
 		settings->NlaSecurity = FALSE;
 	}
 
+    for (index = 0; index < settings->StaticChannelCount; index++)
+	{
+		ADDIN_ARGV* _args = settings->StaticChannelArray[index];
+
+		if (!freerdp_client_load_static_channel_addin(channels, settings, _args->argv[0], _args))
+			return FALSE;
+	}
+
+
 	if (settings->EncomspVirtualChannel)
 	{
 		if (!freerdp_client_load_static_channel_addin(channels, settings, "encomsp", settings))
@@ -3714,14 +3723,6 @@ BOOL freerdp_client_load_addins(rdpChannels* channels, rdpSettings* settings)
 	{
 		if (!freerdp_client_load_static_channel_addin(channels, settings, "rdp2tcp",
 		                                              settings->RDP2TCPArgs))
-			return FALSE;
-	}
-
-	for (index = 0; index < settings->StaticChannelCount; index++)
-	{
-		ADDIN_ARGV* _args = settings->StaticChannelArray[index];
-
-		if (!freerdp_client_load_static_channel_addin(channels, settings, _args->argv[0], _args))
 			return FALSE;
 	}
 
