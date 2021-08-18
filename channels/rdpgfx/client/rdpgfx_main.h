@@ -30,6 +30,7 @@
 #include <freerdp/client/rdpgfx.h>
 #include <freerdp/channels/log.h>
 #include <freerdp/codec/zgfx.h>
+#include <freerdp/cache/persistent.h>
 #include <freerdp/freerdp.h>
 
 struct _RDPGFX_CHANNEL_CALLBACK
@@ -80,6 +81,8 @@ struct _RDPGFX_PLUGIN
 
 	UINT16 MaxCacheSlots;
 	void* CacheSlots[25600];
+	rdpPersistentCache* persistent;
+
 	rdpContext* rdpcontext;
 
 	wLog* log;
