@@ -113,7 +113,9 @@ struct drdynvc_plugin
 	CHANNEL_ENTRY_POINTS_FREERDP_EX channelEntryPoints;
 
 	wLog* log;
+	BOOL async;
 	HANDLE thread;
+	UINT32 totalLength;
 	wStream* data_in;
 	void* InitHandle;
 	DWORD OpenHandle;

@@ -1077,7 +1077,7 @@ static UINT drdynvc_process_create_request(drdynvcPlugin* drdynvc, int Sp, int c
 
 	Stream_Write_UINT8(data_out, (CREATE_REQUEST_PDU << 4) | cbChId);
 	Stream_SetPosition(s, 1);
-	Stream_Copy(s, data_out, pos - 1);
+	Stream_Copy(data_out, s, pos - 1);
 
 	if (channel_status == CHANNEL_RC_OK)
 	{
@@ -1255,6 +1255,7 @@ static UINT drdynvc_virtual_channel_event_data_received(drdynvcPlugin* drdynvc, 
                                                         UINT32 dataFlags)
 {
 	wStream* data_in;
+	UINT error = CHANNEL_RC_OK;
 
 	if ((dataFlags & CHANNEL_FLAG_SUSPEND) || (dataFlags & CHANNEL_FLAG_RESUME))
 	{
@@ -1263,11 +1264,26 @@ static UINT drdynvc_virtual_channel_event_data_received(drdynvcPlugin* drdynvc, 
 
 	if (dataFlags & CHANNEL_FLAG_FIRST)
 	{
-		DVCMAN* mgr = (DVCMAN*)drdynvc->channel_mgr;
-		if (drdynvc->data_in)
-			Stream_Release(drdynvc->data_in);
+		
+        //----------------
+		drdynvc->totalLength = totalLength;
 
-		drdynvc->data_in = StreamPool_Take(mgr->pool, totalLength);
+		if (drdynvc->async)
+		{
+			DVCMAN* mgr = (DVCMAN*)drdynvc->channel_mgr;
+			if (drdynvc->data_in)
+				Stream_Release(drdynvc->data_in);
+
+			drdynvc->data_in = StreamPool_Take(mgr->pool, totalLength);
+		}
+		else
+		{
+			if (!drdynvc->data_in)
+				drdynvc->data_in = Stream_New(NULL, totalLength);
+
+			Stream_SetPosition(drdynvc->data_in, 0);
+			Stream_EnsureCapacity(drdynvc->data_in, totalLength);
+		}
 	}
 
 	if (!(data_in = drdynvc->data_in))
@@ -1290,20 +1306,39 @@ static UINT drdynvc_virtual_channel_event_data_received(drdynvcPlugin* drdynvc, 
 	{
 		const size_t cap = Stream_Capacity(data_in);
 		const size_t pos = Stream_GetPosition(data_in);
-		if (cap < pos)
+		if (drdynvc->totalLength < pos)
 		{
 			WLog_Print(drdynvc->log, WLOG_ERROR, "drdynvc_plugin_process_received: read error");
 			return ERROR_INVALID_DATA;
 		}
 
-		drdynvc->data_in = NULL;
+		
 		Stream_SealLength(data_in);
 		Stream_SetPosition(data_in, 0);
 
-		if (!MessageQueue_Post(drdynvc->queue, NULL, 0, (void*)data_in, NULL))
+        if (drdynvc->async)
 		{
-			WLog_Print(drdynvc->log, WLOG_ERROR, "MessageQueue_Post failed!");
-			return ERROR_INTERNAL_ERROR;
+			drdynvc->data_in = NULL;
+
+			if (!MessageQueue_Post(drdynvc->queue, NULL, 0, (void*)data_in, NULL))
+			{
+				WLog_Print(drdynvc->log, WLOG_ERROR, "MessageQueue_Post failed!");
+				return ERROR_INTERNAL_ERROR;
+			}
+		}
+		else
+		{
+			UINT32 ThreadingFlags = TRUE;
+			error = drdynvc_order_recv(drdynvc, data_in, ThreadingFlags);
+
+			Stream_SetPosition(data_in, 0);
+			Stream_SetLength(data_in, 0);
+
+			if (error)
+			{
+				WLog_ERR(TAG, "drdynvc_order_recv failed with error %lu!", error);
+				return error;
+			}
 		}
 	}
 
@@ -1513,10 +1548,7 @@ static UINT drdynvc_virtual_channel_event_connected(drdynvcPlugin* drdynvc, LPVO
 	for (index = 0; index < settings->DynamicChannelCount; index++)
 	{
 		const ADDIN_ARGV* args = settings->DynamicChannelArray[index];
-		error = dvcman_load_addin(drdynvc, drdynvc->channel_mgr, args, settings);
-
-		if (CHANNEL_RC_OK != error)
-			goto error;
+		dvcman_load_addin(drdynvc, drdynvc->channel_mgr, args, settings);
 	}
 
 	if ((error = dvcman_init(drdynvc, drdynvc->channel_mgr)))
@@ -1761,6 +1793,19 @@ static int drdynvc_get_version(DrdynvcClientContext* context)
 	return drdynvc->version;
 }
 
+const char* drdynvc_get_channel_name(DrdynvcClientContext* context, UINT32 channelId)
+{
+	DVCMAN_CHANNEL* channel;
+	drdynvcPlugin* drdynvc = (drdynvcPlugin*)context->handle;
+
+	channel = (DVCMAN_CHANNEL*)dvcman_find_channel_by_id(drdynvc->channel_mgr, channelId);
+
+	if (!channel)
+		return NULL;
+
+	return channel->channel_name;
+}
+
 /* drdynvc is always built-in */
 #define VirtualChannelEntryEx drdynvc_VirtualChannelEntryEx
 
@@ -1800,6 +1845,7 @@ BOOL VCAPITYPE VirtualChannelEntryEx(PCHANNEL_ENTRY_POINTS_EX pEntryPoints, PVOI
 		context->custom = NULL;
 		drdynvc->context = context;
 		context->GetVersion = drdynvc_get_version;
+		context->GetChannelName = drdynvc_get_channel_name;
 		drdynvc->rdpcontext = pEntryPointsEx->context;
 	}
 
