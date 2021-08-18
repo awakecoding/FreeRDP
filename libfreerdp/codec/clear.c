@@ -86,6 +86,36 @@ static const UINT32 CLEAR_LOG2_FLOOR[256] = {
 
 static const BYTE CLEAR_8BIT_MASKS[9] = { 0x00, 0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF };
 
+void clear_reset_vbar_storage(CLEAR_CONTEXT* clear)
+{
+	int i;
+
+	for (i = 0; i < 32768; i++)
+		free(clear->VBarStorage[i].pixels);
+
+	ZeroMemory(clear->VBarStorage, sizeof(clear->VBarStorage));
+
+	clear->VBarStorageCursor = 0;
+
+	for (i = 0; i < 16384; i++)
+		free(clear->ShortVBarStorage[i].pixels);
+
+	ZeroMemory(clear->ShortVBarStorage, sizeof(clear->ShortVBarStorage));
+
+	clear->ShortVBarStorageCursor = 0;
+}
+
+void clear_reset_glyph_cache(CLEAR_CONTEXT* clear)
+{
+	int i;
+
+	for (i = 0; i < 4000; i++)
+		free(clear->GlyphCache[i].pixels);
+
+	ZeroMemory(clear->GlyphCache, sizeof(clear->GlyphCache));
+}
+
+
 static BOOL convert_color(BYTE* dst, UINT32 nDstStep, UINT32 DstFormat, UINT32 nXDst, UINT32 nYDst,
                           UINT32 nWidth, UINT32 nHeight, const BYTE* src, UINT32 nSrcStep,
                           UINT32 SrcFormat, UINT32 nDstWidth, UINT32 nDstHeight,
@@ -1075,8 +1105,7 @@ INT32 clear_decompress(CLEAR_CONTEXT* clear, const BYTE* pSrcData, UINT32 SrcSiz
 
 	if (glyphFlags & CLEARCODEC_FLAG_CACHE_RESET)
 	{
-		clear->VBarStorageCursor = 0;
-		clear->ShortVBarStorageCursor = 0;
+		clear_reset_vbar_storage(clear);
 	}
 
 	if (!clear_decompress_glyph_data(clear, s, glyphFlags, nWidth, nHeight, pDstData, DstFormat,
@@ -1160,6 +1189,10 @@ BOOL clear_context_reset(CLEAR_CONTEXT* clear)
 	if (!clear)
 		return FALSE;
 
+    /**
+	 * The ClearCodec context is not bound to a particular surface,
+	 * and its internal caches must NOT be reset on the ResetGraphics PDU.
+	 */
 	clear->seqNumber = 0;
 	return TRUE;
 }
@@ -1204,14 +1237,8 @@ void clear_context_free(CLEAR_CONTEXT* clear)
 	nsc_context_free(clear->nsc);
 	free(clear->TempBuffer);
 
-	for (i = 0; i < 4000; i++)
-		free(clear->GlyphCache[i].pixels);
+    clear_reset_vbar_storage(clear);
+	clear_reset_glyph_cache(clear);
 
-	for (i = 0; i < 32768; i++)
-		free(clear->VBarStorage[i].pixels);
-
-	for (i = 0; i < 16384; i++)
-		free(clear->ShortVBarStorage[i].pixels);
-
-	free(clear);
+    free(clear);
 }
