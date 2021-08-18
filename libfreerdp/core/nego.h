@@ -138,5 +138,6 @@ FREERDP_LOCAL NEGO_STATE nego_get_state(rdpNego* nego);
 FREERDP_LOCAL SEC_WINNT_AUTH_IDENTITY* nego_get_identity(rdpNego* nego);
 
 FREERDP_LOCAL void nego_free_nla(rdpNego* nego);
+FREERDP_LOCAL BOOL nego_read_request_token_or_cookie(rdpNego* nego, wStream* s);
 
 #endif /* FREERDP_LIB_CORE_NEGO_H */

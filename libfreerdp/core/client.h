@@ -114,11 +114,22 @@ struct rdp_channels
 	CRITICAL_SECTION channelsLock;
 };
 
-FREERDP_LOCAL rdpChannels* freerdp_channels_new(freerdp* instance);
-FREERDP_LOCAL UINT freerdp_channels_disconnect(rdpChannels* channels, freerdp* instance);
-FREERDP_LOCAL void freerdp_channels_close(rdpChannels* channels, freerdp* instance);
-FREERDP_LOCAL void freerdp_channels_free(rdpChannels* channels);
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+FREERDP_API rdpChannels* freerdp_channels_new(freerdp* instance);
+FREERDP_API UINT freerdp_channels_disconnect(rdpChannels* channels, freerdp* instance);
+FREERDP_API void freerdp_channels_close(rdpChannels* channels, freerdp* instance);
+FREERDP_API void freerdp_channels_free(rdpChannels* channels);
 FREERDP_LOCAL void freerdp_channels_register_instance(rdpChannels* channels, freerdp* instance);
-FREERDP_LOCAL UINT freerdp_channels_pre_connect(rdpChannels* channels, freerdp* instance);
-FREERDP_LOCAL UINT freerdp_channels_post_connect(rdpChannels* channels, freerdp* instance);
+FREERDP_API UINT freerdp_channels_pre_connect(rdpChannels* channels, freerdp* instance);
+FREERDP_API UINT freerdp_channels_post_connect(rdpChannels* channels, freerdp* instance);
+FREERDP_LOCAL CHANNEL_OPEN_DATA* freerdp_channels_find_channel_open_data_by_name(rdpChannels* channels, const char* name);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FREERDP_LIB_CORE_CLIENT_H */

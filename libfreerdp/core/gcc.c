@@ -1188,9 +1188,12 @@ BOOL gcc_read_server_security_data(wStream* s, rdpMcs* mcs)
 
 	if (settings->UseRdpSecurityLayer && !(settings->EncryptionMethods & serverEncryptionMethod))
 	{
-		WLog_WARN(TAG, "Server uses non-advertised encryption method 0x%08" PRIX32 "",
+		if (!settings->ReplayMode)
+		{
+		   WLog_WARN(TAG, "Server uses non-advertised encryption method 0x%08" PRIX32 "",
 		          serverEncryptionMethod);
-		/* FIXME: Should we return FALSE; in this case ?? */
+		   /* FIXME: Should we return FALSE; in this case ?? */
+        }
 	}
 
 	settings->EncryptionMethods = serverEncryptionMethod;
@@ -1958,7 +1961,10 @@ BOOL gcc_read_client_message_channel_data(wStream* s, rdpMcs* mcs, UINT16 blockL
 		return FALSE;
 
 	Stream_Read_UINT32(s, flags);
-	mcs->messageChannelId = mcs->baseChannelId++;
+
+	if (!mcs->settings->ReplayMode)
+		mcs->messageChannelId = mcs->baseChannelId++;
+
 	return TRUE;
 }
 

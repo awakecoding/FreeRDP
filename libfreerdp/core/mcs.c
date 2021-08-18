@@ -202,7 +202,7 @@ static BOOL mcs_write_connect_response(wStream* s, rdpMcs* mcs, wStream* userDat
 static BOOL mcs_read_domain_mcspdu_header(wStream* s, enum DomainMCSPDU* domainMCSPDU,
                                           UINT16* length);
 
-static int mcs_initialize_client_channels(rdpMcs* mcs, rdpSettings* settings)
+int mcs_initialize_client_channels(rdpMcs* mcs, rdpSettings* settings)
 {
 	UINT32 index;
 

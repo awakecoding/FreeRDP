@@ -682,7 +682,7 @@ int nego_recv(rdpTransport* transport, wStream* s, void* extra)
  * @param s stream
  */
 
-static BOOL nego_read_request_token_or_cookie(rdpNego* nego, wStream* s)
+BOOL nego_read_request_token_or_cookie(rdpNego* nego, wStream* s)
 {
 	/* routingToken and cookie are optional and mutually exclusive!
 	 *
