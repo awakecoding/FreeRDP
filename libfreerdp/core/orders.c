@@ -34,6 +34,8 @@
 #include <freerdp/codec/bitmap.h>
 #include <freerdp/gdi/gdi.h>
 
+#include "surface.h"
+
 #include "orders.h"
 
 #include "../cache/glyph.h"
@@ -2292,11 +2294,11 @@ BOOL update_write_cache_bitmap_v2_order(wStream* s, CACHE_BITMAP_V2_ORDER* cache
 static CACHE_BITMAP_V3_ORDER* update_read_cache_bitmap_v3_order(rdpUpdate* update, wStream* s,
                                                                 UINT16 flags)
 {
+	BYTE reserved1;
+	BYTE reserved2;
 	BOOL rc;
 	BYTE bitsPerPixelId;
 	BITMAP_DATA_EX* bitmapData;
-	UINT32 new_len;
-	BYTE* new_data;
 	CACHE_BITMAP_V3_ORDER* cache_bitmap_v3;
 
 	if (!update || !s)
@@ -2314,7 +2316,7 @@ static CACHE_BITMAP_V3_ORDER* update_read_cache_bitmap_v3_order(rdpUpdate* updat
 	if (!rc)
 		goto fail;
 
-	if (Stream_GetRemainingLength(s) < 21)
+	if (Stream_GetRemainingLength(s) < 22)
 		goto fail;
 
 	Stream_Read_UINT16(s, cache_bitmap_v3->cacheIndex); /* cacheIndex (2 bytes) */
@@ -2329,24 +2331,37 @@ static CACHE_BITMAP_V3_ORDER* update_read_cache_bitmap_v3_order(rdpUpdate* updat
 		goto fail;
 	}
 
-	Stream_Seek_UINT8(s);                      /* reserved1 (1 byte) */
-	Stream_Seek_UINT8(s);                      /* reserved2 (1 byte) */
+    Stream_Read_UINT8(s, reserved1); /* flags (1 byte) */
+	Stream_Read_UINT8(s, reserved2); /* reserved2 (1 byte) */
 	Stream_Read_UINT8(s, bitmapData->codecID); /* codecID (1 byte) */
 	Stream_Read_UINT16(s, bitmapData->width);  /* width (2 bytes) */
 	Stream_Read_UINT16(s, bitmapData->height); /* height (2 bytes) */
-	Stream_Read_UINT32(s, new_len);            /* length (4 bytes) */
+	Stream_Read_UINT32(s, bitmapData->length); /* length (4 bytes) */
 
-	if ((new_len == 0) || (Stream_GetRemainingLength(s) < new_len))
+    if (reserved1 & TS_COMPRESSED_BITMAP_EX_HEADER_FLAG)
+	{
+		UINT32 key1;
+		UINT32 key2;
+		UINT64 tmMilli;
+		UINT64 tmSec;
+
+		if (Stream_GetRemainingLength(s) < 24)
+			return FALSE;
+
+		Stream_Read_UINT32(s, key1);    /* key1 (4 bytes) */
+		Stream_Read_UINT32(s, key2);    /* key2 (4 bytes) */
+		Stream_Read_UINT64(s, tmMilli); /* tmMilli (8 bytes) */
+		Stream_Read_UINT64(s, tmSec);   /* tmSec (8 bytes) */
+	}
+
+	if ((bitmapData->length == 0) || (Stream_GetRemainingLength(s) < bitmapData->length))
 		goto fail;
 
-	new_data = (BYTE*)realloc(bitmapData->data, new_len);
+	Stream_GetPointer(s, bitmapData->data);
+	Stream_Seek(s, bitmapData->length);
 
-	if (!new_data)
-		goto fail;
-
-	bitmapData->data = new_data;
-	bitmapData->length = new_len;
-	Stream_Read(s, bitmapData->data, bitmapData->length);
+	if (bitmapData->codecID == 5)
+		bitmapData->codecID = RDP_CODEC_ID_IMAGE_REMOTEFX;
 	return cache_bitmap_v3;
 fail:
 	free_cache_bitmap_v3_order(update->context, cache_bitmap_v3);

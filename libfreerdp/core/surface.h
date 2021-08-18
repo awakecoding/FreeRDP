@@ -25,6 +25,8 @@
 #include <winpr/stream.h>
 #include <freerdp/api.h>
 
+#define TS_COMPRESSED_BITMAP_EX_HEADER_FLAG 0x01
+
 #define SURFCMD_SURFACE_BITS_HEADER_LENGTH 22
 #define SURFCMD_FRAME_MARKER_LENGTH 8
 

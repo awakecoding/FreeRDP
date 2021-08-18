@@ -73,13 +73,19 @@ static BOOL update_recv_surfcmd_bitmap_ex(wStream* s, TS_BITMAP_DATA_EX* bmp)
 	}
 
 	bmp->bitmapData = Stream_Pointer(s);
+	if (bmp->codecID == 5)
+		bmp->codecID = RDP_CODEC_ID_IMAGE_REMOTEFX;
 	return Stream_SafeSeek(s, bmp->bitmapDataLength);
 }
 
 static BOOL update_recv_surfcmd_surface_bits(rdpUpdate* update, wStream* s, UINT16 cmdType)
 {
+	size_t pos;
+	BYTE reserved1;
+	BYTE reserved2;
 	SURFACE_BITS_COMMAND cmd = { 0 };
 
+    pos = Stream_GetPosition(s);
 	if (Stream_GetRemainingLength(s) < 8)
 		goto fail;
 
