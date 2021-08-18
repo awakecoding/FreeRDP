@@ -363,6 +363,15 @@ BOOL freerdp_settings_get_bool(const rdpSettings* settings, size_t id)
 		case FreeRDP_PromptForCredentials:
 			return settings->PromptForCredentials;
 
+        case FreeRDP_ExternalTransport:
+			return settings->ExternalTransport;
+
+		case FreeRDP_ExternalSecurity:
+			return settings->ExternalSecurity;
+
+		case FreeRDP_ReplayMode:
+			return settings->ReplayMode;
+
 		case FreeRDP_RdpSecurity:
 			return settings->RdpSecurity;
 
@@ -993,6 +1002,18 @@ BOOL freerdp_settings_set_bool(rdpSettings* settings, size_t id, BOOL val)
 
 		case FreeRDP_PromptForCredentials:
 			settings->PromptForCredentials = val;
+			break;
+
+        case FreeRDP_ExternalTransport:
+			settings->ExternalTransport = val;
+			break;
+
+		case FreeRDP_ExternalSecurity:
+			settings->ExternalSecurity = val;
+			break;
+
+		case FreeRDP_ReplayMode:
+			settings->ReplayMode = val;
 			break;
 
 		case FreeRDP_RdpSecurity:
@@ -2250,6 +2271,9 @@ const char* freerdp_settings_get_string(const rdpSettings* settings, size_t id)
 		case FreeRDP_AuthenticationServiceClass:
 			return settings->AuthenticationServiceClass;
 
+        case FreeRDP_BitmapCachePersistFile:
+			return settings->BitmapCachePersistFile;
+
 		case FreeRDP_CertificateAcceptedFingerprints:
 			return settings->CertificateAcceptedFingerprints;
 
@@ -2467,6 +2491,9 @@ BOOL freerdp_settings_set_string_(rdpSettings* settings, size_t id, const char* 
 
 		case FreeRDP_AuthenticationServiceClass:
 			return update_string(&settings->AuthenticationServiceClass, val, len, cleanup);
+
+        case FreeRDP_BitmapCachePersistFile:
+			return update_string(&settings->BitmapCachePersistFile, val, len, cleanup);
 
 		case FreeRDP_CertificateAcceptedFingerprints:
 			return update_string(&settings->CertificateAcceptedFingerprints, val, len, cleanup);

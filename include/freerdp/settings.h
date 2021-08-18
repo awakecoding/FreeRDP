@@ -741,6 +741,9 @@ typedef struct _RDPDR_PARALLEL RDPDR_PARALLEL;
 #define FreeRDP_PlayRemoteFx (1857)
 #define FreeRDP_DumpRemoteFxFile (1858)
 #define FreeRDP_PlayRemoteFxFile (1859)
+#define FreeRDP_ExternalTransport (1860)
+#define FreeRDP_ExternalSecurity (1861)
+#define FreeRDP_ReplayMode (1862)
 #define FreeRDP_GatewayUsageMethod (1984)
 #define FreeRDP_GatewayPort (1985)
 #define FreeRDP_GatewayHostname (1986)
@@ -805,6 +808,7 @@ typedef struct _RDPDR_PARALLEL RDPDR_PARALLEL;
 #define FreeRDP_BitmapCachePersistEnabled (2500)
 #define FreeRDP_BitmapCacheV2NumCells (2501)
 #define FreeRDP_BitmapCacheV2CellInfo (2502)
+#define FreeRDP_BitmapCachePersistFile (2503)
 #define FreeRDP_ColorPointerFlag (2560)
 #define FreeRDP_PointerCacheSize (2561)
 #define FreeRDP_KeyboardRemappingList (2622)
@@ -1246,7 +1250,10 @@ struct rdp_settings
 	ALIGN64 BOOL PlayRemoteFx;       /* 1857 */
 	ALIGN64 char* DumpRemoteFxFile;  /* 1858 */
 	ALIGN64 char* PlayRemoteFxFile;  /* 1859 */
-	UINT64 padding1920[1920 - 1860]; /* 1860 */
+	ALIGN64 BOOL ExternalTransport;  /* 1860 */
+	ALIGN64 BOOL ExternalSecurity;   /* 1861 */
+	ALIGN64 BOOL ReplayMode;         /* 1862 */
+	UINT64 padding1920[1920 - 1863]; /* 1863 */
 	UINT64 padding1984[1984 - 1920]; /* 1920 */
 
 	/**
@@ -1348,7 +1355,8 @@ struct rdp_settings
 	ALIGN64 BOOL BitmapCachePersistEnabled;                   /* 2500 */
 	ALIGN64 UINT32 BitmapCacheV2NumCells;                     /* 2501 */
 	ALIGN64 BITMAP_CACHE_V2_CELL_INFO* BitmapCacheV2CellInfo; /* 2502 */
-	UINT64 padding2560[2560 - 2503];                          /* 2503 */
+	ALIGN64 char* BitmapCachePersistFile;                     /* 2503 */
+	UINT64 padding2560[2560 - 2504];                          /* 2504 */
 
 	/* Pointer Capabilities */
 	ALIGN64 BOOL ColorPointerFlag;   /* 2560 */
