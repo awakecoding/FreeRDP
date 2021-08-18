@@ -31,6 +31,7 @@ typedef struct _BITMAP_V2_CELL BITMAP_V2_CELL;
 typedef struct rdp_bitmap_cache rdpBitmapCache;
 
 #include <freerdp/cache/cache.h>
+#include <freerdp/cache/persistent.h>
 
 struct _BITMAP_V2_CELL
 {
@@ -56,6 +57,7 @@ struct rdp_bitmap_cache
 	rdpUpdate* update;
 	rdpContext* context;
 	rdpSettings* settings;
+	rdpPersistentCache* persistent;
 };
 
 #ifdef __cplusplus

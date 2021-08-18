@@ -207,29 +207,136 @@ static BOOL rdp_write_persistent_list_entry(wStream* s, UINT32 key1, UINT32 key2
 	return TRUE;
 }
 
-static BOOL rdp_write_client_persistent_key_list_pdu(wStream* s, const rdpSettings* settings)
+static BOOL rdp_write_client_persistent_key_list_pdu(wStream* s, RDP_BITMAP_PERSISTENT_INFO* info)
 {
+	int index;
+	UINT32 key1;
+	UINT32 key2;
+
 	if (Stream_GetRemainingCapacity(s) < 24)
 		return FALSE;
-	Stream_Write_UINT16(s, 0);                                   /* numEntriesCache0 (2 bytes) */
-	Stream_Write_UINT16(s, 0);                                   /* numEntriesCache1 (2 bytes) */
-	Stream_Write_UINT16(s, 0);                                   /* numEntriesCache2 (2 bytes) */
-	Stream_Write_UINT16(s, 0);                                   /* numEntriesCache3 (2 bytes) */
-	Stream_Write_UINT16(s, 0);                                   /* numEntriesCache4 (2 bytes) */
-	Stream_Write_UINT16(s, 0);                                   /* totalEntriesCache0 (2 bytes) */
-	Stream_Write_UINT16(s, 0);                                   /* totalEntriesCache1 (2 bytes) */
-	Stream_Write_UINT16(s, 0);                                   /* totalEntriesCache2 (2 bytes) */
-	Stream_Write_UINT16(s, 0);                                   /* totalEntriesCache3 (2 bytes) */
-	Stream_Write_UINT16(s, 0);                                   /* totalEntriesCache4 (2 bytes) */
+	Stream_Write_UINT16(s, info->numEntriesCache0);              /* numEntriesCache0 (2 bytes) */
+	Stream_Write_UINT16(s, info->numEntriesCache1);              /* numEntriesCache1 (2 bytes) */
+	Stream_Write_UINT16(s, info->numEntriesCache2);              /* numEntriesCache2 (2 bytes) */
+	Stream_Write_UINT16(s, info->numEntriesCache3);              /* numEntriesCache3 (2 bytes) */
+	Stream_Write_UINT16(s, info->numEntriesCache4);              /* numEntriesCache4 (2 bytes) */
+	Stream_Write_UINT16(s, info->totalEntriesCache0);            /* totalEntriesCache0 (2 bytes) */
+	Stream_Write_UINT16(s, info->totalEntriesCache1);            /* totalEntriesCache1 (2 bytes) */
+	Stream_Write_UINT16(s, info->totalEntriesCache2);            /* totalEntriesCache2 (2 bytes) */
+	Stream_Write_UINT16(s, info->totalEntriesCache3);            /* totalEntriesCache3 (2 bytes) */
+	Stream_Write_UINT16(s, info->totalEntriesCache4);            /* totalEntriesCache4 (2 bytes) */
 	Stream_Write_UINT8(s, PERSIST_FIRST_PDU | PERSIST_LAST_PDU); /* bBitMask (1 byte) */
 	Stream_Write_UINT8(s, 0);                                    /* pad1 (1 byte) */
 	Stream_Write_UINT16(s, 0);                                   /* pad3 (2 bytes) */
 	                                                             /* entries */
+
+    Stream_EnsureRemainingCapacity(s, info->keyCount * 8);
+
+	for (index = 0; index < info->keyCount; index++)
+	{
+		key1 = (UINT32)info->keyList[index];
+		key2 = (UINT32)(info->keyList[index] >> 32);
+		Stream_Write_UINT32(s, key1);
+		Stream_Write_UINT32(s, key2);
+	}
+
 	return TRUE;
+}
+
+UINT32 rdp_load_persistent_key_list(rdpRdp* rdp, UINT64** pKeyList)
+{
+	int index;
+	int count;
+	int status;
+	UINT32 keyCount;
+	UINT64* keyList = NULL;
+	rdpPersistentCache* persistent;
+	PERSISTENT_CACHE_ENTRY cacheEntry;
+	rdpSettings* settings = rdp->settings;
+
+	*pKeyList = NULL;
+
+	if (!settings->BitmapCachePersistEnabled)
+		return 0;
+
+	if (!settings->BitmapCachePersistFile)
+		return 0;
+
+	persistent = persistent_cache_new();
+
+	if (!persistent)
+		return 0;
+
+	status = persistent_cache_open(persistent, settings->BitmapCachePersistFile, FALSE, -1);
+
+	if (status < 1)
+		goto error;
+
+	count = persistent_cache_get_count(persistent);
+
+	keyCount = (UINT32)count;
+	keyList = (UINT64*)malloc(keyCount * sizeof(UINT64));
+
+	for (index = 0; index < count; index++)
+	{
+		if (persistent_cache_read_entry(persistent, &cacheEntry) < 1)
+			continue;
+
+		keyList[index] = cacheEntry.key64;
+	}
+
+	*pKeyList = keyList;
+
+	persistent_cache_free(persistent);
+	return keyCount;
+error:
+	persistent_cache_free(persistent);
+	return 0;
 }
 
 BOOL rdp_send_client_persistent_key_list_pdu(rdpRdp* rdp)
 {
+	UINT32 keyCount;
+	UINT64* keyList = NULL;
+	RDP_BITMAP_PERSISTENT_INFO info;
+	rdpSettings* settings = rdp->settings;
+
+	keyCount = rdp_load_persistent_key_list(rdp, &keyList);
+
+	info.totalEntriesCache0 = settings->BitmapCacheV2CellInfo[0].numEntries;
+	info.totalEntriesCache1 = settings->BitmapCacheV2CellInfo[1].numEntries;
+	info.totalEntriesCache2 = settings->BitmapCacheV2CellInfo[2].numEntries;
+	info.totalEntriesCache3 = settings->BitmapCacheV2CellInfo[3].numEntries;
+	info.totalEntriesCache4 = settings->BitmapCacheV2CellInfo[4].numEntries;
+
+	info.numEntriesCache0 =
+	    (keyCount < info.totalEntriesCache0) ? keyCount : info.totalEntriesCache0;
+	keyCount -= info.numEntriesCache0;
+	info.numEntriesCache1 =
+	    (keyCount < info.totalEntriesCache1) ? keyCount : info.totalEntriesCache1;
+	keyCount -= info.numEntriesCache1;
+	info.numEntriesCache2 =
+	    (keyCount < info.totalEntriesCache2) ? keyCount : info.totalEntriesCache2;
+	keyCount -= info.numEntriesCache2;
+	info.numEntriesCache3 =
+	    (keyCount < info.totalEntriesCache3) ? keyCount : info.totalEntriesCache3;
+	keyCount -= info.numEntriesCache3;
+	info.numEntriesCache4 =
+	    (keyCount < info.totalEntriesCache4) ? keyCount : info.totalEntriesCache4;
+	keyCount -= info.numEntriesCache4;
+
+	info.totalEntriesCache0 = info.numEntriesCache0;
+	info.totalEntriesCache1 = info.numEntriesCache1;
+	info.totalEntriesCache2 = info.numEntriesCache2;
+	info.totalEntriesCache3 = info.numEntriesCache3;
+	info.totalEntriesCache4 = info.numEntriesCache4;
+
+	keyCount = info.totalEntriesCache0 + info.totalEntriesCache1 + info.totalEntriesCache2 +
+	           info.totalEntriesCache3 + info.totalEntriesCache4;
+
+	info.keyCount = keyCount;
+	info.keyList = keyList;
+
 	wStream* s = rdp_data_pdu_init(rdp);
 	if (!s)
 		return FALSE;
@@ -238,6 +345,9 @@ BOOL rdp_send_client_persistent_key_list_pdu(rdpRdp* rdp)
 		Stream_Free(s, TRUE);
 		return FALSE;
 	}
+
+    free(keyList);
+
 	return rdp_send_data_pdu(rdp, s, DATA_PDU_TYPE_BITMAP_CACHE_PERSISTENT_LIST, rdp->mcs->userId);
 }
 
