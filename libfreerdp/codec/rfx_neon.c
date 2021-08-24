@@ -21,7 +21,7 @@
 #include "config.h"
 #endif
 
-#if defined(__ARM_NEON__)
+#if defined(__ARM_NEON__) || defined(__ARM_NEON)
 
 #include <stdio.h>
 #include <stdlib.h>
