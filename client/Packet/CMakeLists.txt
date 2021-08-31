@@ -2,7 +2,7 @@ set(MODULE_NAME "pfreerdp-client")
 set(MODULE_PREFIX "FREERDP_CLIENT_PACKET")
 
 set(${MODULE_PREFIX}_SRCS
-	RdpDecoder.cpp
+	RdpDecoder.c
 	RdpDecoder.h)
 
 add_library(${MODULE_NAME} SHARED ${${MODULE_PREFIX}_SRCS})

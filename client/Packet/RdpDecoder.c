@@ -40,6 +40,16 @@
 
 #include "RdpDecoder.h"
 
+struct rdp_decoder
+{
+	void* m_context;
+	void* m_settings;
+	char* m_filename;
+	void* m_frameParam;
+	fnFrameCallback m_frameFunc;
+	HANDLE m_finishEvent;
+};
+
 typedef struct pf_context pfContext;
 
 struct pf_context
@@ -65,7 +75,7 @@ void pf_OnChannelConnectedEventHandler(rdpContext* context, ChannelConnectedEven
 
 	if (!strcmp(e->name, RDPGFX_DVC_CHANNEL_NAME))
 	{
-		gdi_graphics_pipeline_init(context->gdi, (RdpgfxClientContext*) e->pInterface);
+		gdi_graphics_pipeline_init(context->gdi, (RdpgfxClientContext*)e->pInterface);
 	}
 }
 
@@ -75,14 +85,13 @@ void pf_OnChannelDisconnectedEventHandler(rdpContext* context, ChannelDisconnect
 
 	if (!strcmp(e->name, RDPGFX_DVC_CHANNEL_NAME))
 	{
-		gdi_graphics_pipeline_uninit(context->gdi, (RdpgfxClientContext*) e->pInterface);
+		gdi_graphics_pipeline_uninit(context->gdi, (RdpgfxClientContext*)e->pInterface);
 	}
 }
 
 BOOL pf_begin_paint(pfContext* pfc)
 {
-	WLog_WARN(TAG, "pf_begin_paint");
-	rdpGdi* gdi = ((rdpContext*) pfc)->gdi;
+	rdpGdi* gdi = ((rdpContext*)pfc)->gdi;
 	gdi->primary->hdc->hwnd->invalid->null = TRUE;
 	gdi->primary->hdc->hwnd->ninvalid = 0;
 	return TRUE;
@@ -93,13 +102,13 @@ BOOL pf_end_paint(pfContext* pfc)
 	rdpGdi* gdi;
 	HGDI_RGN invalid;
 	UINT64 frameTime;
-	rdpContext* context = (rdpContext*) pfc;
+	rdpContext* context = (rdpContext*)pfc;
 
 	gdi = context->gdi;
 	invalid = gdi->primary->hdc->hwnd->invalid;
 
-    if (gdi->primary->hdc->hwnd->ninvalid < 0) 
-        return TRUE;
+	if (gdi->primary->hdc->hwnd->ninvalid < 0)
+		return TRUE;
 
 	if (invalid->null)
 		return TRUE;
@@ -108,8 +117,9 @@ BOOL pf_end_paint(pfContext* pfc)
 
 	if (pfc->frameFunc)
 	{
-		pfc->frameFunc(pfc->frameParam, gdi->primary_buffer, gdi->width * 4, gdi->width, gdi->height,
-			invalid->x, invalid->y, invalid->w, invalid->h, frameTime, pfc->frameIndex);
+		pfc->frameFunc(pfc->frameParam, gdi->primary_buffer, gdi->width * 4, gdi->width,
+					gdi->height, invalid->x, invalid->y, invalid->w, invalid->h, frameTime,
+					pfc->frameIndex);
 	}
 
 	pfc->frameIndex++;
@@ -119,14 +129,14 @@ BOOL pf_end_paint(pfContext* pfc)
 
 BOOL pf_desktop_resize(pfContext* pfc)
 {
-	rdpContext* context = (rdpContext*) pfc;
+	rdpContext* context = (rdpContext*)pfc;
 	rdpSettings* settings = context->settings;
 
 	if (!gdi_resize(context->gdi, settings->DesktopWidth, settings->DesktopHeight))
 		return FALSE;
 
-	freerdp_client_codecs_reset(context->codecs, FREERDP_CODEC_ALL,
-		settings->DesktopWidth, settings->DesktopHeight);
+	freerdp_client_codecs_reset(context->codecs, FREERDP_CODEC_ALL, settings->DesktopWidth,
+								settings->DesktopHeight);
 
 	return TRUE;
 }
@@ -187,14 +197,15 @@ BOOL pf_pre_connect(freerdp* instance)
 	settings->DeviceRedirection = FALSE;
 	settings->SupportDynamicChannels = FALSE;
 	settings->SupportGraphicsPipeline = TRUE;
-    settings->BitmapCacheEnabled = TRUE;
+	settings->BitmapCacheEnabled = TRUE;
 	settings->OffscreenSupportLevel = TRUE;
+	settings->IgnoreCertificate = TRUE;
 
-	PubSub_SubscribeChannelConnected(context->pubSub,
-		(pChannelConnectedEventHandler) pf_OnChannelConnectedEventHandler);
+	PubSub_SubscribeChannelConnected(
+		context->pubSub, (pChannelConnectedEventHandler)pf_OnChannelConnectedEventHandler);
 
-	PubSub_SubscribeChannelDisconnected(context->pubSub,
-		(pChannelDisconnectedEventHandler) pf_OnChannelDisconnectedEventHandler);
+	PubSub_SubscribeChannelDisconnected(
+		context->pubSub, (pChannelDisconnectedEventHandler)pf_OnChannelDisconnectedEventHandler);
 
 	return TRUE;
 }
@@ -209,16 +220,15 @@ BOOL pf_post_connect(freerdp* instance)
 	if (!gdi_init(instance, PIXEL_FORMAT_RGBX32))
 		return FALSE;
 
-	update->BeginPaint = (pBeginPaint) pf_begin_paint;
-	update->EndPaint = (pEndPaint) pf_end_paint;
-	update->DesktopResize = (pDesktopResize) pf_desktop_resize;
+	update->BeginPaint = (pBeginPaint)pf_begin_paint;
+	update->EndPaint = (pEndPaint)pf_end_paint;
+	update->DesktopResize = (pDesktopResize)pf_desktop_resize;
 
 	return TRUE;
 }
 
 void pf_post_disconnect(freerdp* instance)
 {
-	
 }
 
 static BOOL pf_authenticate(freerdp* instance, char** username, char** password, char** domain)
@@ -231,7 +241,8 @@ static BOOL pf_gw_authenticate(freerdp* instance, char** username, char** passwo
 	return TRUE;
 }
 
-int pf_verify_x509_certificate(freerdp* instance, const BYTE* data, size_t length, const char* hostname, UINT16 port, DWORD flags)
+int pf_verify_x509_certificate(freerdp* instance, const BYTE* data, size_t length,
+								const char* hostname, UINT16 port, DWORD flags)
 {
 	return 1;
 }
@@ -250,8 +261,8 @@ DWORD WINAPI pf_client_thread(LPVOID lpParam)
 	freerdp* instance;
 	rdpContext* context;
 
-	context = (rdpContext*) lpParam;
-	pfc = (pfContext*) context;
+	context = (rdpContext*)lpParam;
+	pfc = (pfContext*)context;
 	instance = context->instance;
 
 	while (1)
@@ -289,12 +300,11 @@ BOOL pfreerdp_client_global_init(void)
 
 void pfreerdp_client_global_uninit(void)
 {
-
 }
 
 BOOL pfreerdp_client_new(freerdp* instance, rdpContext* context)
 {
-	pfContext* pfc = (pfContext*) context;
+	pfContext* pfc = (pfContext*)context;
 
 	context->channels = freerdp_channels_new(instance);
 
@@ -319,7 +329,7 @@ BOOL pfreerdp_client_new(freerdp* instance, rdpContext* context)
 
 void pfreerdp_client_free(freerdp* instance, rdpContext* context)
 {
-	pfContext* pfc = (pfContext*) context;
+	pfContext* pfc = (pfContext*)context;
 
 	if (!context)
 		return;
@@ -353,13 +363,12 @@ void pfreerdp_client_free(freerdp* instance, rdpContext* context)
 
 int pfreerdp_client_start(rdpContext* context)
 {
-	pfContext* pfc = (pfContext*) context;
+	pfContext* pfc = (pfContext*)context;
 
 	ResetEvent(pfc->stopEvent);
-	
+
 	if (pfc->finishEvent)
 		ResetEvent(pfc->finishEvent);
-
 
 	rdpSettings* settings = context->settings;
 	rdpChannels* channels = context->channels;
@@ -368,7 +377,7 @@ int pfreerdp_client_start(rdpContext* context)
 	if (!freerdp_connect(context->instance))
 		return -1;
 
-	pfc->thread = CreateThread(NULL, 0, pf_client_thread, (void*) context, 0, NULL);
+	pfc->thread = CreateThread(NULL, 0, pf_client_thread, (void*)context, 0, NULL);
 
 	if (!pfc->thread)
 		return -1;
@@ -378,7 +387,7 @@ int pfreerdp_client_start(rdpContext* context)
 
 int pfreerdp_client_stop(rdpContext* context)
 {
-	pfContext* pfc = (pfContext*) context;
+	pfContext* pfc = (pfContext*)context;
 
 	if (pfc->thread)
 	{
@@ -409,11 +418,7 @@ int RdpClientEntry(RDP_CLIENT_ENTRY_POINTS* pEntryPoints)
 	return 0;
 }
 
-/**
- * C++ Wrapper Class
- */
-
-bool RdpDecoder::open(const char* filename)
+bool RdpDecoder_Open(RdpDecoder* ctx, const char* filename)
 {
 	int argc;
 	char* argv[4];
@@ -426,45 +431,45 @@ bool RdpDecoder::open(const char* filename)
 
 	if (filename)
 	{
-		m_filename = _strdup(filename);
+		ctx->m_filename = _strdup(filename);
 
-		if (!m_filename)
+		if (!ctx->m_filename)
 			return false;
 	}
 
-	if (!m_filename)
+	if (!ctx->m_filename)
 		return false;
 
 	ZeroMemory(&clientEntryPoints, sizeof(RDP_CLIENT_ENTRY_POINTS));
 	clientEntryPoints.Size = sizeof(RDP_CLIENT_ENTRY_POINTS);
 	clientEntryPoints.Version = RDP_CLIENT_INTERFACE_VERSION;
 
-	settings = (rdpSettings*) m_settings;
+	settings = (rdpSettings*)ctx->m_settings;
 	clientEntryPoints.settings = settings;
 
 	RdpClientEntry(&clientEntryPoints);
 
 	context = freerdp_client_context_new(&clientEntryPoints);
-	m_context = (void*) context;
+	ctx->m_context = (void*)context;
 
-	pfc = (pfContext*) context;
+	pfc = (pfContext*)context;
 	settings = context->settings;
-	m_settings = (rdpSettings*) settings;
+	ctx->m_settings = (rdpSettings*)settings;
 
-    freerdp_settings_set_string(settings, FreeRDP_ServerHostname, m_filename);
+	freerdp_settings_set_string(settings, FreeRDP_ServerHostname, ctx->m_filename);
 
 	return true;
 }
 
-bool RdpDecoder::args(int argc, char** argv)
+bool RdpDecoder_Args(RdpDecoder* ctx, int argc, char** argv)
 {
 	int status;
 	const char* filename;
 	rdpContext* context;
 	rdpSettings* settings;
 
-	context = (rdpContext*) m_context;
-	settings = (rdpSettings*) m_settings;
+	context = (rdpContext*)ctx->m_context;
+	settings = (rdpSettings*)ctx->m_settings;
 
 	if (context)
 		settings = context->settings;
@@ -474,7 +479,7 @@ bool RdpDecoder::args(int argc, char** argv)
 	if (!settings)
 		return false;
 
-	m_settings = settings;
+	ctx->m_settings = settings;
 
 	status = freerdp_client_settings_parse_command_line(settings, argc, argv, TRUE);
 
@@ -483,38 +488,39 @@ bool RdpDecoder::args(int argc, char** argv)
 
 	filename = freerdp_settings_get_string(settings, FreeRDP_ServerHostname);
 
-	m_filename = _strdup(filename);
+	ctx->m_filename = _strdup(filename);
 
 	return true;
 }
 
-void RdpDecoder::close()
+void RdpDecoder_Close(RdpDecoder* ctx)
 {
-	if (m_context)
+	if (ctx->m_context)
 	{
-		freerdp_client_context_free((rdpContext*) m_context);
-		m_context = NULL;
+		freerdp_client_context_free((rdpContext*)ctx->m_context);
+		ctx->m_context = NULL;
 	}
 
-	if (m_filename)
+	if (ctx->m_filename)
 	{
-		free(m_filename);
-		m_filename = NULL;
+		free(ctx->m_filename);
+		ctx->m_filename = NULL;
 	}
 }
 
-void RdpDecoder::setFinishEvent(HANDLE finishEvent)
+void RdpDecoder_SetFinishEvent(RdpDecoder* ctx, HANDLE finishEvent)
 {
-	m_finishEvent = finishEvent;
+	ctx->m_finishEvent = finishEvent;
 }
 
-void RdpDecoder::setFrameCallback(fnFrameCallback func, void* param)
+void RdpDecoder_SetFrameCallback(RdpDecoder* ctx, fnFrameCallback func, void* param)
 {
-	m_frameFunc = func;
-	m_frameParam = param;
+	ctx->m_frameFunc = func;
+	ctx->m_frameParam = param;
 }
 
-int RdpDecoder::writeBitmap(const char* filename, BYTE* data, int step, int width, int height)
+int RdpDecoder_WriteBitmap(RdpDecoder* ctx, const char* filename, BYTE* data, int step, int width,
+							int height)
 {
 	int status;
 	wImage img;
@@ -533,25 +539,25 @@ int RdpDecoder::writeBitmap(const char* filename, BYTE* data, int step, int widt
 	return status;
 }
 
-bool RdpDecoder::start()
+bool RdpDecoder_Start(RdpDecoder* ctx)
 {
 	int status;
 	pfContext* pfc;
 	rdpContext* context;
-	
-	context = (rdpContext*) m_context;
-	pfc = (pfContext*) m_context;
+
+	context = (rdpContext*)ctx->m_context;
+	pfc = (pfContext*)ctx->m_context;
 
 	if (!pfc)
 		return false;
 
-	if (!m_frameFunc)
+	if (!ctx->m_frameFunc)
 		return false;
 
-	pfc->frameFunc = m_frameFunc;
-	pfc->frameParam = m_frameParam;
+	pfc->frameFunc = ctx->m_frameFunc;
+	pfc->frameParam = ctx->m_frameParam;
 
-	pfc->finishEvent = m_finishEvent;
+	pfc->finishEvent = ctx->m_finishEvent;
 
 	status = freerdp_client_start(context);
 
@@ -561,14 +567,14 @@ bool RdpDecoder::start()
 	return true;
 }
 
-bool RdpDecoder::stop()
+bool RdpDecoder_Stop(RdpDecoder* ctx)
 {
 	int status;
 	pfContext* pfc;
 	rdpContext* context;
 
-	context = (rdpContext*) m_context;
-	pfc = (pfContext*) m_context;
+	context = (rdpContext*)ctx->m_context;
+	pfc = (pfContext*)ctx->m_context;
 
 	status = freerdp_client_stop(context);
 
@@ -578,15 +584,30 @@ bool RdpDecoder::stop()
 	return true;
 }
 
-static int g_RefCount = 0;
-
-RdpDecoder::RdpDecoder():
-	m_context(NULL), m_settings(NULL), m_filename(NULL),
-	m_frameParam(NULL), m_frameFunc(NULL), m_finishEvent(NULL)
+RdpDecoder* RdpDecoder_New()
 {
+	RdpDecoder* ctx;
+
+	ctx = (RdpDecoder*)calloc(1, sizeof(RdpDecoder));
+
+	if (!ctx)
+		return ctx;
+
+	ctx->m_context = NULL;
+	ctx->m_settings = NULL;
+	ctx->m_filename = NULL;
+	ctx->m_frameParam = NULL;
+	ctx->m_frameFunc = NULL;
+	ctx->m_finishEvent = NULL;
+
+	return ctx;
 }
 
-RdpDecoder::~RdpDecoder()
+void RdpDecoder_Free(RdpDecoder* ctx)
 {
-	close();
+	if (!ctx)
+		return;
+
+	RdpDecoder_Close(ctx);
+	return;
 }

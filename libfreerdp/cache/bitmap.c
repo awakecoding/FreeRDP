@@ -141,7 +141,7 @@ static BOOL update_gdi_cache_bitmap_v2(rdpContext* context, CACHE_BITMAP_V2_ORDE
 	if (!bitmap)
 		return FALSE;
 
-    bitmap->key64 = ((UINT64)cacheBitmapV2->key1 | (((UINT64)cacheBitmapV2->key2) << 32));
+	bitmap->key64 = ((UINT64)cacheBitmapV2->key1 | (((UINT64)cacheBitmapV2->key2) << 32));
 
 	if (!cacheBitmapV2->bitmapBpp)
 		cacheBitmapV2->bitmapBpp = settings->ColorDepth;
@@ -149,7 +149,7 @@ static BOOL update_gdi_cache_bitmap_v2(rdpContext* context, CACHE_BITMAP_V2_ORDE
 	if ((settings->ColorDepth == 15) && (cacheBitmapV2->bitmapBpp == 16))
 		cacheBitmapV2->bitmapBpp = settings->ColorDepth;
 
-    
+	
 	Bitmap_SetDimensions(bitmap, cacheBitmapV2->bitmapWidth, cacheBitmapV2->bitmapHeight);
 
 	if (!bitmap->Decompress(context, bitmap, cacheBitmapV2->bitmapDataStream,
@@ -276,6 +276,7 @@ void bitmap_cache_register_callbacks(rdpUpdate* update)
 
 int bitmap_cache_load_persistent(rdpBitmapCache* bitmapCache)
 {
+	WLog_ERR(TAG, "bitmap_cache_load_persistent");
 	int index;
 	int count;
 	int status;
@@ -419,28 +420,27 @@ void bitmap_cache_free(rdpBitmapCache* bitmapCache)
 		return;
 	}
 
-    bitmap_cache_save_persistent(bitmapCache);
+	bitmap_cache_save_persistent(bitmapCache);
 
-		UINT32 i;
-		for (i = 0; i < bitmapCache->maxCells; i++)
+	UINT32 i;
+	for (i = 0; i < bitmapCache->maxCells; i++)
+	{
+		UINT32 j;
+		BITMAP_V2_CELL* cell = &bitmapCache->cells[i];
+		if (!cell->entries)
+			continue;
+		for (j = 0; j < cell->number + 1; j++)
 		{
-			UINT32 j;
-			BITMAP_V2_CELL* cell = &bitmapCache->cells[i];
-			if (!cell->entries)
-				continue;
-			for (j = 0; j < cell->number + 1; j++)
-			{
-				rdpBitmap* bitmap = cell->entries[j];
-				Bitmap_Free(bitmapCache->context, bitmap);
-			}
-
-			free(bitmapCache->cells[i].entries);
+			rdpBitmap* bitmap = cell->entries[j];
+			Bitmap_Free(bitmapCache->context, bitmap);
 		}
 
-		free(bitmapCache->cells);
-	    persistent_cache_free(bitmapCache->persistent);
-		free(bitmapCache);
-	
+		free(bitmapCache->cells[i].entries);
+	}
+
+	free(bitmapCache->cells);
+	persistent_cache_free(bitmapCache->persistent);
+	free(bitmapCache);
 }
 
 static void free_bitmap_data(BITMAP_DATA* data, size_t count)

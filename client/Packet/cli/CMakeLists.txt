@@ -5,7 +5,7 @@ set(MODULE_PREFIX "FREERDP_CLIENT_PACKET_CLI")
 include_directories(..)
 
 set(${MODULE_PREFIX}_SRCS
-	pfreerdp.cpp)
+	pfreerdp.c)
 
 add_executable(${MODULE_NAME} ${${MODULE_PREFIX}_SRCS})
 

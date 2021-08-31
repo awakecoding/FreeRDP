@@ -3856,7 +3856,7 @@ static BOOL update_recv_secondary_order(rdpUpdate* update, wStream* s, BYTE flag
 	return rc;
 }
 
-static BOOL read_altsec_order(wStream* s, BYTE orderType, rdpAltSecUpdate* altsec)
+static BOOL read_altsec_order(wStream* s, rdpUpdate* update, BYTE orderType, rdpAltSecUpdate* altsec)
 {
 	BOOL rc = FALSE;
 
@@ -3876,6 +3876,13 @@ static BOOL read_altsec_order(wStream* s, BYTE orderType, rdpAltSecUpdate* altse
 
 		case ORDER_TYPE_FRAME_MARKER:
 			rc = update_read_frame_marker_order(s, &(altsec->frame_marker));
+			if (!rc)
+			{
+				WLog_ERR(TAG, "ORDER_TYPE_FRAME_MARKER - update_read_frame_marker_order() failed");
+			}
+			WLog_Print(update->log, WLOG_DEBUG, "AltSecFrameMarker: action: %s (%d)",
+			           (!altsec->frame_marker.action) ? "Begin" : "End",
+			           altsec->frame_marker.action);
 			break;
 
 		case ORDER_TYPE_STREAM_BITMAP_FIRST:
@@ -3943,7 +3950,7 @@ static BOOL update_recv_altsec_order(rdpUpdate* update, wStream* s, BYTE flags)
 	if (!check_alt_order_supported(update->log, settings, orderType, orderName))
 		return FALSE;
 
-	if (!read_altsec_order(s, orderType, altsec))
+	if (!read_altsec_order(s, update, orderType, altsec))
 		return FALSE;
 
 	switch (orderType)

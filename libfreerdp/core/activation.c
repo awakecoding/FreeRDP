@@ -230,7 +230,7 @@ static BOOL rdp_write_client_persistent_key_list_pdu(wStream* s, RDP_BITMAP_PERS
 	Stream_Write_UINT16(s, 0);                                   /* pad3 (2 bytes) */
 	                                                             /* entries */
 
-    Stream_EnsureRemainingCapacity(s, info->keyCount * 8);
+	Stream_EnsureRemainingCapacity(s, info->keyCount * 8);
 
 	for (index = 0; index < info->keyCount; index++)
 	{
@@ -310,19 +310,19 @@ BOOL rdp_send_client_persistent_key_list_pdu(rdpRdp* rdp)
 	info.totalEntriesCache4 = settings->BitmapCacheV2CellInfo[4].numEntries;
 
 	info.numEntriesCache0 =
-	    (keyCount < info.totalEntriesCache0) ? keyCount : info.totalEntriesCache0;
+		(keyCount < info.totalEntriesCache0) ? keyCount : info.totalEntriesCache0;
 	keyCount -= info.numEntriesCache0;
 	info.numEntriesCache1 =
-	    (keyCount < info.totalEntriesCache1) ? keyCount : info.totalEntriesCache1;
+		(keyCount < info.totalEntriesCache1) ? keyCount : info.totalEntriesCache1;
 	keyCount -= info.numEntriesCache1;
 	info.numEntriesCache2 =
-	    (keyCount < info.totalEntriesCache2) ? keyCount : info.totalEntriesCache2;
+		(keyCount < info.totalEntriesCache2) ? keyCount : info.totalEntriesCache2;
 	keyCount -= info.numEntriesCache2;
 	info.numEntriesCache3 =
-	    (keyCount < info.totalEntriesCache3) ? keyCount : info.totalEntriesCache3;
+		(keyCount < info.totalEntriesCache3) ? keyCount : info.totalEntriesCache3;
 	keyCount -= info.numEntriesCache3;
 	info.numEntriesCache4 =
-	    (keyCount < info.totalEntriesCache4) ? keyCount : info.totalEntriesCache4;
+		(keyCount < info.totalEntriesCache4) ? keyCount : info.totalEntriesCache4;
 	keyCount -= info.numEntriesCache4;
 
 	info.totalEntriesCache0 = info.numEntriesCache0;
@@ -332,7 +332,7 @@ BOOL rdp_send_client_persistent_key_list_pdu(rdpRdp* rdp)
 	info.totalEntriesCache4 = info.numEntriesCache4;
 
 	keyCount = info.totalEntriesCache0 + info.totalEntriesCache1 + info.totalEntriesCache2 +
-	           info.totalEntriesCache3 + info.totalEntriesCache4;
+		info.totalEntriesCache3 + info.totalEntriesCache4;
 
 	info.keyCount = keyCount;
 	info.keyList = keyList;
@@ -346,7 +346,7 @@ BOOL rdp_send_client_persistent_key_list_pdu(rdpRdp* rdp)
 		return FALSE;
 	}
 
-    free(keyList);
+	free(keyList);
 
 	return rdp_send_data_pdu(rdp, s, DATA_PDU_TYPE_BITMAP_CACHE_PERSISTENT_LIST, rdp->mcs->userId);
 }

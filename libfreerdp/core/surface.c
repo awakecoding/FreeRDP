@@ -85,7 +85,7 @@ static BOOL update_recv_surfcmd_surface_bits(rdpUpdate* update, wStream* s, UINT
 	BYTE reserved2;
 	SURFACE_BITS_COMMAND cmd = { 0 };
 
-    pos = Stream_GetPosition(s);
+	pos = Stream_GetPosition(s);
 	if (Stream_GetRemainingLength(s) < 8)
 		goto fail;
 

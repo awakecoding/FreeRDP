@@ -10,43 +10,42 @@ int WINAPI PacketFrameCallback(void* frameParam,
 	RdpDecoder* dec = (RdpDecoder*) frameParam;
 
 	sprintf_s(filename, sizeof(filename) - 1, "rdp_%04d.bmp", frameIndex);
-	dec->writeBitmap(filename, frameData, frameStep, frameWidth, frameHeight);
+	RdpDecoder_WriteBitmap(dec, filename, frameData, frameStep, frameWidth, frameHeight);
 
 	return 1;
 }
 
 int main(int argc, char** argv)
 {
-	RdpDecoder* dec;
+	RdpDecoder* dec = RdpDecoder_New();
 	HANDLE finishEvent;
 
-	dec = new RdpDecoder();
 	finishEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
-	dec->setFinishEvent(finishEvent);
-	dec->setFrameCallback(PacketFrameCallback, dec);
+	RdpDecoder_SetFinishEvent(dec, finishEvent);
+	RdpDecoder_SetFrameCallback(dec, PacketFrameCallback, dec);
 
 	if ((argc == 2) && (argv[1][0] != '/'))
 	{
 		/* use filename only */
-		dec->open(argv[1]);
+		RdpDecoder_Open(dec, argv[1]);
 	}
 	else
 	{
 		/* use FreeRDP arguments */
-		dec->args(argc, argv);
-		dec->open(NULL);
+		RdpDecoder_Args(dec, argc, argv);
+		RdpDecoder_Open(dec, NULL);
 	}
 
-	dec->start();
+	RdpDecoder_Start(dec);
 
 	WaitForSingleObject(finishEvent, INFINITE);
 
-	dec->stop();
-	dec->close();
+	RdpDecoder_Stop(dec);
+	RdpDecoder_Close(dec);
 
 	CloseHandle(finishEvent);
-	delete dec;
+	RdpDecoder_Free(dec);
 
 	return 0;
 }

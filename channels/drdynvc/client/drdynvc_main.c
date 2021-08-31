@@ -1265,7 +1265,7 @@ static UINT drdynvc_virtual_channel_event_data_received(drdynvcPlugin* drdynvc, 
 	if (dataFlags & CHANNEL_FLAG_FIRST)
 	{
 		
-        //----------------
+		//----------------
 		drdynvc->totalLength = totalLength;
 
 		if (drdynvc->async)
@@ -1316,7 +1316,7 @@ static UINT drdynvc_virtual_channel_event_data_received(drdynvcPlugin* drdynvc, 
 		Stream_SealLength(data_in);
 		Stream_SetPosition(data_in, 0);
 
-        if (drdynvc->async)
+		if (drdynvc->async)
 		{
 			drdynvc->data_in = NULL;
 

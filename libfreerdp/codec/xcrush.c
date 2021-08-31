@@ -903,7 +903,7 @@ int xcrush_decompress(XCRUSH_CONTEXT* xcrush, BYTE* pSrcData, UINT32 SrcSize, BY
 		return status;
 	}
 
-    if (Level2ComprFlags & PACKET_FLUSHED)
+	if (Level2ComprFlags & PACKET_FLUSHED)
 	{
 		xcrush_context_reset(xcrush, FALSE);
 	}

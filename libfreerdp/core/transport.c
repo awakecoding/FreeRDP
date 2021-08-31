@@ -375,7 +375,7 @@ BOOL transport_connect(rdpTransport* transport, const char* hostname, UINT16 por
 	else
 	{
 
-        if (!settings->ExternalTransport)
+		if (!settings->ExternalTransport)
 		{
 			UINT16 peerPort;
 			const char *proxyHostname, *proxyUsername, *proxyPassword;
@@ -821,7 +821,10 @@ static int transport_default_read_pdu(rdpTransport* transport, wStream* s)
 		return status;
 
 	if (Stream_GetPosition(s) >= pduLength)
+	{
+
 		WLog_Packet(transport->log, WLOG_TRACE, Stream_Buffer(s), pduLength, WLOG_PACKET_INBOUND);
+	}
 
 	Stream_SealLength(s);
 	Stream_SetPosition(s, 0);

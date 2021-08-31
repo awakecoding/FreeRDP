@@ -30,7 +30,7 @@ struct rdp_metrics
 	UINT64 TotalUncompressedBytes;
 	double TotalCompressionRatio;
 
-    UINT64 SessionTime;
+	UINT64 SessionTime;
 };
 
 #ifdef __cplusplus
@@ -42,7 +42,7 @@ extern "C"
 	                                       UINT32 CompressedBytes);
 
 
-    FREERDP_API void metrics_set_session_time(rdpMetrics* metrics, UINT64 SessionTime);
+	FREERDP_API void metrics_set_session_time(rdpMetrics* metrics, UINT64 SessionTime);
 	FREERDP_API UINT64 metrics_get_session_time(rdpMetrics* metrics);
 
 

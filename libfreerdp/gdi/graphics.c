@@ -167,8 +167,8 @@ static BOOL gdi_Bitmap_Decompress(rdpContext* context, rdpBitmap* bitmap, const 
 				return FALSE;
 
 			message = rfx_process_message(context->codecs->rfx, pSrcData, SrcSize, bitmap->left,
-			                              bitmap->top, bitmap->data, bitmap->format, gdi->stride, gdi->height,
-			                              &invalidRegion);
+			                              bitmap->top, bitmap->data, bitmap->format, gdi->stride,
+			                              gdi->height, &invalidRegion);
 
 			if (!message)
 			{
@@ -189,7 +189,7 @@ static BOOL gdi_Bitmap_Decompress(rdpContext* context, rdpBitmap* bitmap, const 
 			else
 			{
 				WLog_WARN(TAG, "RfxMessage: numTiles: %d numRects: %d width: %d height: %d",
-				         message->numTiles, message->numRects, DstWidth, DstHeight);
+				          message->numTiles, message->numRects, DstWidth, DstHeight);
 			}
 
 			rfx_message_free(context->codecs->rfx, message);
@@ -213,8 +213,7 @@ static BOOL gdi_Bitmap_Decompress(rdpContext* context, rdpBitmap* bitmap, const 
 			}
 
 			return freerdp_image_copy(bitmap->data, bitmap->format, 0, 0, 0, DstWidth, DstHeight,
-			                          pSrcData, PIXEL_FORMAT_XRGB32, 0, 0, 0,
-			                          &gdi->palette,
+			                          pSrcData, PIXEL_FORMAT_XRGB32, 0, 0, 0, &gdi->palette,
 			                          FREERDP_FLIP_VERTICAL);
 		}
 		else if (bpp < 32)

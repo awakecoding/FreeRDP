@@ -1264,7 +1264,7 @@ static UINT gdi_SurfaceToCache(RdpgfxClientContext* context,
 	if (!cacheEntry)
 		goto fail;
 
-    cacheEntry->cacheKey = surfaceToCache->cacheKey;
+	cacheEntry->cacheKey = surfaceToCache->cacheKey;
 	cacheEntry->width = (UINT32)(rect->right - rect->left);
 	cacheEntry->height = (UINT32)(rect->bottom - rect->top);
 	cacheEntry->format = surface->format;
@@ -1388,8 +1388,7 @@ static UINT gdi_CacheImportReply(RdpgfxClientContext* context,
 		cacheEntry->width = 0;
 		cacheEntry->height = 0;
 
-		cacheEntry->format =
-		    PIXEL_FORMAT_XBGR32; //(!gdi->invert) ? PIXEL_FORMAT_XRGB32 : PIXEL_FORMAT_XBGR32;
+		cacheEntry->format = PIXEL_FORMAT_XBGR32;
 
 		cacheEntry->scanline = (cacheEntry->width + (cacheEntry->width % 4)) * 4;
 		cacheEntry->data = NULL;
@@ -1415,8 +1414,7 @@ UINT gdi_ImportCacheEntry(RdpgfxClientContext* context, UINT16 cacheSlot,
 	cacheEntry->width = (UINT32)importCacheEntry->width;
 	cacheEntry->height = (UINT32)importCacheEntry->height;
 
-	cacheEntry->format =
-	    PIXEL_FORMAT_XRGB32; //(!gdi->invert) ? PIXEL_FORMAT_XRGB32 : PIXEL_FORMAT_XBGR32;
+	cacheEntry->format = PIXEL_FORMAT_XRGB32;
 
 	cacheEntry->scanline = (cacheEntry->width + (cacheEntry->width % 4)) * 4;
 	cacheEntry->data = (BYTE*)calloc(1, cacheEntry->scanline * cacheEntry->height);
@@ -1478,7 +1476,7 @@ static UINT gdi_EvictCacheEntry(RdpgfxClientContext* context,
 		free(cacheEntry);
 	}
 
-    rc = context->SetCacheSlotData(context, evictCacheEntry->cacheSlot, NULL);
+	rc = context->SetCacheSlotData(context, evictCacheEntry->cacheSlot, NULL);
 	LeaveCriticalSection(&context->mux);
 	return rc;
 }

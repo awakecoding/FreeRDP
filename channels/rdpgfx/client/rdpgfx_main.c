@@ -844,7 +844,7 @@ static UINT rdpgfx_recv_cache_import_reply_pdu(RDPGFX_CHANNEL_CALLBACK* callback
 		Stream_Read_UINT16(s, pdu.cacheSlots[index]); /* cacheSlot (2 bytes) */
 	}
 
-    rdpgfx_load_cache_import_reply(gfx, &pdu);
+	rdpgfx_load_cache_import_reply(gfx, &pdu);
 
 	DEBUG_RDPGFX(gfx->log, "RecvCacheImportReplyPdu: importedEntriesCount: %" PRIu16 "",
 	             pdu.importedEntriesCount);
@@ -1107,7 +1107,7 @@ static UINT rdpgfx_recv_wire_to_surface_1_pdu(RDPGFX_CHANNEL_CALLBACK* callback,
 	pdu.bitmapData = Stream_Pointer(s);
 	Stream_Seek(s, pdu.bitmapDataLength);
 
-    if (pdu.codecId == 5)
+	if (pdu.codecId == 5)
 		pdu.codecId = RDPGFX_CODECID_CAVIDEO; /* Lync RDP workaround */
 
 
@@ -1920,8 +1920,7 @@ static UINT rdpgfx_on_data_received(IWTSVirtualChannelCallback* pChannelCallback
 	RDPGFX_CHANNEL_CALLBACK* callback = (RDPGFX_CHANNEL_CALLBACK*)pChannelCallback;
 	RDPGFX_PLUGIN* gfx = (RDPGFX_PLUGIN*)callback->plugin;
 	UINT error = CHANNEL_RC_OK;
-	status = zgfx_decompress(gfx->zgfx, Stream_Pointer(data),
-	                         (UINT32) Stream_GetRemainingLength(data),
+	status = zgfx_decompress(gfx->zgfx, Stream_Pointer(data), (UINT32) Stream_GetRemainingLength(data),
 	                         &pDstData, &DstSize, 0);
 
 	if (status < 0)

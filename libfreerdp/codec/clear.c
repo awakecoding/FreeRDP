@@ -1189,7 +1189,7 @@ BOOL clear_context_reset(CLEAR_CONTEXT* clear)
 	if (!clear)
 		return FALSE;
 
-    /**
+	/**
 	 * The ClearCodec context is not bound to a particular surface,
 	 * and its internal caches must NOT be reset on the ResetGraphics PDU.
 	 */
@@ -1237,8 +1237,8 @@ void clear_context_free(CLEAR_CONTEXT* clear)
 	nsc_context_free(clear->nsc);
 	free(clear->TempBuffer);
 
-    clear_reset_vbar_storage(clear);
+	clear_reset_vbar_storage(clear);
 	clear_reset_glyph_cache(clear);
 
-    free(clear);
+	free(clear);
 }

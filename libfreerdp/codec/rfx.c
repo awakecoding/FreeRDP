@@ -477,7 +477,7 @@ static BOOL rfx_process_message_codec_versions(RFX_CONTEXT* context, wStream* s)
 	Stream_Read_UINT8(s, numCodecs);         /* numCodecs (1 byte), must be set to 0x01 */
 
 	
-    if (!numCodecs)
+	if (!numCodecs)
 	{
 		context->codec_id = 0x01;
 		context->codec_version = WF_VERSION_1_0;
@@ -485,28 +485,28 @@ static BOOL rfx_process_message_codec_versions(RFX_CONTEXT* context, wStream* s)
 	else
 	{
 		if (numCodecs != 1)
-	    {
-		    WLog_ERR(TAG, "%s: numCodes is 0x%02" PRIX8 " (must be 0x01)", __FUNCTION__, numCodecs);
-		    return FALSE;
-	    }
+		{
+			WLog_ERR(TAG, "%s: numCodes is 0x%02" PRIX8 " (must be 0x01)", __FUNCTION__, numCodecs);
+			return FALSE;
+		}
 
-        Stream_Read_UINT8(s, context->codec_id);       /* codecId (1 byte), must be set to 0x01 */
+		Stream_Read_UINT8(s, context->codec_id);       /* codecId (1 byte), must be set to 0x01 */
 		Stream_Read_UINT16(s, context->codec_version); /* version (2 bytes), must be set to
 		                                                  WF_VERSION_1_0 (0x0100)  */
 
-	    if (context->codec_id != 0x01)
-	    {
-		    WLog_ERR(TAG, "%s: invalid codec id (0x%02" PRIX32 ")", __FUNCTION__, context->codec_id);
-		    return FALSE;
-	    }
+		if (context->codec_id != 0x01)
+		{
+			WLog_ERR(TAG, "%s: invalid codec id (0x%02" PRIX32 ")", __FUNCTION__, context->codec_id);
+			return FALSE;
+		}
 
-	    if (context->codec_version != WF_VERSION_1_0)
-	    {
-		    WLog_ERR(TAG, "%s: invalid codec version (0x%08" PRIX32 ")", __FUNCTION__,
-		         context->codec_version);
-		    return FALSE;
-	    }
-    }
+		if (context->codec_version != WF_VERSION_1_0)
+		{
+			WLog_ERR(TAG, "%s: invalid codec version (0x%08" PRIX32 ")", __FUNCTION__,
+				context->codec_version);
+			return FALSE;
+		}
+	}
 
 	WLog_Print(context->priv->log, WLOG_DEBUG, "id %" PRIu32 " version 0x%" PRIX32 ".",
 	           context->codec_id, context->codec_version);
@@ -592,7 +592,7 @@ static BOOL rfx_process_message_context(RFX_CONTEXT* context, wStream* s)
 	Stream_Read_UINT16(s, tileSize); /* tileSize (2 bytes), must be set to CT_TILE_64x64 (0x0040) */
 	Stream_Read_UINT16(s, properties); /* properties (2 bytes) */
 
-    if (!tileSize)
+	if (!tileSize)
 		tileSize = CT_TILE_64x64;
 
 	WLog_Print(context->priv->log, WLOG_DEBUG,
@@ -1081,7 +1081,7 @@ BOOL rfx_process_message(RFX_CONTEXT* context, const BYTE* data, UINT32 length, 
 		WLog_Print(context->priv->log, WLOG_DEBUG, "blockType 0x%" PRIX32 " blockLen %" PRIu32 "",
 		           blockType, blockLen);
 
-        if (!blockLen)
+		if (!blockLen)
 		{
 			switch (blockType)
 			{
@@ -1131,7 +1131,7 @@ BOOL rfx_process_message(RFX_CONTEXT* context, const BYTE* data, UINT32 length, 
 			Stream_Read_UINT8(s, codecId);   /* codecId (1 byte) must be set to 0x01 */
 			Stream_Read_UINT8(s, channelId); /* channelId (1 byte) 0xFF or 0x00, see below */
 
-            if (!codecId)
+			if (!codecId)
 				codecId = 0x01;
 
 			if (codecId != 0x01)
