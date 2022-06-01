@@ -189,6 +189,12 @@ BOOL freerdp_settings_get_bool(const rdpSettings* settings, size_t id)
 		case FreeRDP_ExternalCertificateManagement:
 			return settings->ExternalCertificateManagement;
 
+		case FreeRDP_ExternalSecurity:
+			return settings->ExternalSecurity;
+
+		case FreeRDP_ExternalTransport:
+			return settings->ExternalTransport;
+
 		case FreeRDP_FIPSMode:
 			return settings->FIPSMode;
 
@@ -350,6 +356,12 @@ BOOL freerdp_settings_get_bool(const rdpSettings* settings, size_t id)
 
 		case FreeRDP_OldLicenseBehaviour:
 			return settings->OldLicenseBehaviour;
+
+		case FreeRDP_SavePacketCapture:
+			return settings->SavePacketCapture;
+
+		case FreeRDP_PlayPacketCapture:
+			return settings->PlayPacketCapture;
 
 		case FreeRDP_PasswordIsSmartcardPin:
 			return settings->PasswordIsSmartcardPin;
@@ -781,6 +793,14 @@ BOOL freerdp_settings_set_bool(rdpSettings* settings, size_t id, BOOL val)
 			settings->ExternalCertificateManagement = cnv.c;
 			break;
 
+		case FreeRDP_ExternalSecurity:
+			settings->ExternalSecurity = cnv.c;
+			break;
+
+		case FreeRDP_ExternalTransport:
+			settings->ExternalTransport = cnv.c;
+			break;
+
 		case FreeRDP_FIPSMode:
 			settings->FIPSMode = cnv.c;
 			break;
@@ -995,6 +1015,14 @@ BOOL freerdp_settings_set_bool(rdpSettings* settings, size_t id, BOOL val)
 
 		case FreeRDP_OldLicenseBehaviour:
 			settings->OldLicenseBehaviour = cnv.c;
+			break;
+
+		case FreeRDP_SavePacketCapture:
+			settings->SavePacketCapture = cnv.c;
+			break;
+
+		case FreeRDP_PlayPacketCapture:
+			settings->PlayPacketCapture = cnv.c;
 			break;
 
 		case FreeRDP_PasswordIsSmartcardPin:
@@ -2469,6 +2497,9 @@ const char* freerdp_settings_get_string(const rdpSettings* settings, size_t id)
 		case FreeRDP_NtlmSamFile:
 			return settings->NtlmSamFile;
 
+		case FreeRDP_PacketCaptureFile:
+			return settings->PacketCaptureFile;
+
 		case FreeRDP_Password:
 			return settings->Password;
 
@@ -2729,6 +2760,9 @@ char* freerdp_settings_get_string_writable(rdpSettings* settings, size_t id)
 
 		case FreeRDP_NtlmSamFile:
 			return settings->NtlmSamFile;
+
+		case FreeRDP_PacketCaptureFile:
+			return settings->PacketCaptureFile;
 
 		case FreeRDP_Password:
 			return settings->Password;
@@ -3000,6 +3034,9 @@ BOOL freerdp_settings_set_string_(rdpSettings* settings, size_t id, const char* 
 
 		case FreeRDP_NtlmSamFile:
 			return update_string(&settings->NtlmSamFile, cnv.cc, len, cleanup);
+
+		case FreeRDP_PacketCaptureFile:
+			return update_string(&settings->PacketCaptureFile, cnv.cc, len, cleanup);
 
 		case FreeRDP_Password:
 			return update_string(&settings->Password, cnv.cc, len, cleanup);

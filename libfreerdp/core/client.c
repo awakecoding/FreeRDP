@@ -46,7 +46,7 @@ static wHashTable* g_ChannelHandles = NULL;
 
 static BOOL freerdp_channels_process_message_free(wMessage* message, DWORD type);
 
-static CHANNEL_OPEN_DATA* freerdp_channels_find_channel_open_data_by_name(rdpChannels* channels,
+CHANNEL_OPEN_DATA* freerdp_channels_find_channel_open_data_by_name(rdpChannels* channels,
                                                                           const char* name)
 {
 	int index;

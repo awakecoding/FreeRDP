@@ -1078,7 +1078,7 @@ static UINT drdynvc_process_create_request(drdynvcPlugin* drdynvc, int Sp, int c
 
 	Stream_Write_UINT8(data_out, (CREATE_REQUEST_PDU << 4) | cbChId);
 	Stream_SetPosition(s, 1);
-	Stream_Copy(s, data_out, pos - 1);
+	Stream_Copy(data_out, s, pos - 1);
 
 	if (channel_status == CHANNEL_RC_OK)
 	{
@@ -1777,6 +1777,19 @@ static int drdynvc_get_version(DrdynvcClientContext* context)
 	return drdynvc->version;
 }
 
+const char* drdynvc_get_channel_name(DrdynvcClientContext* context, UINT32 channelId)
+{
+	DVCMAN_CHANNEL* channel;
+	drdynvcPlugin* drdynvc = (drdynvcPlugin*)context->handle;
+
+	channel = (DVCMAN_CHANNEL*)dvcman_find_channel_by_id(drdynvc->channel_mgr, channelId);
+
+	if (!channel)
+		return NULL;
+
+	return channel->channel_name;
+}
+
 /* drdynvc is always built-in */
 #define VirtualChannelEntryEx drdynvc_VirtualChannelEntryEx
 
@@ -1817,6 +1830,7 @@ BOOL VCAPITYPE VirtualChannelEntryEx(PCHANNEL_ENTRY_POINTS_EX pEntryPoints, PVOI
 		context->custom = NULL;
 		drdynvc->context = context;
 		context->GetVersion = drdynvc_get_version;
+		context->GetChannelName = drdynvc_get_channel_name;
 		drdynvc->rdpcontext = pEntryPointsEx->context;
 	}
 

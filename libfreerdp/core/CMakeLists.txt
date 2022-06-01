@@ -132,6 +132,7 @@ set(${MODULE_PREFIX}_SRCS
 	window.h
 	listener.c
 	listener.h
+	pcap.c
 	peer.c
 	peer.h
 	display.c

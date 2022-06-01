@@ -29,6 +29,7 @@
 typedef struct s_drdynvc_client_context DrdynvcClientContext;
 
 typedef int (*pcDrdynvcGetVersion)(DrdynvcClientContext* context);
+typedef const char* (*pcDrdynvcGetChannelName)(DrdynvcClientContext* context, UINT32 channelId);
 typedef UINT (*pcDrdynvcOnChannelConnected)(DrdynvcClientContext* context, const char* name,
                                             void* pInterface);
 typedef UINT (*pcDrdynvcOnChannelDisconnected)(DrdynvcClientContext* context, const char* name,
@@ -44,6 +45,7 @@ struct s_drdynvc_client_context
 	void* custom;
 
 	pcDrdynvcGetVersion GetVersion;
+	pcDrdynvcGetChannelName GetChannelName;
 	pcDrdynvcOnChannelConnected OnChannelConnected;
 	pcDrdynvcOnChannelDisconnected OnChannelDisconnected;
 	pcDrdynvcOnChannelAttached OnChannelAttached;

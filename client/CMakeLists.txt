@@ -28,6 +28,11 @@ if(FREERDP_VENDOR AND WITH_CLIENT)
 		endif()
 	endif()
 
+	option(WITH_CLIENT_PCAP "Build pcap client" ON)
+	if(WITH_CLIENT_PCAP)
+		add_subdirectory(Packet)
+	endif()
+
 	if(WITH_X11)
 		add_subdirectory(X11)
 	endif()

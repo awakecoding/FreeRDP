@@ -37,6 +37,16 @@ double metrics_write_bytes(rdpMetrics* metrics, UINT32 UncompressedBytes, UINT32
 	return CompressionRatio;
 }
 
+void metrics_set_session_time(rdpMetrics* metrics, UINT64 SessionTime)
+{
+	metrics->SessionTime = SessionTime;
+}
+
+UINT64 metrics_get_session_time(rdpMetrics* metrics)
+{
+	return metrics->SessionTime;
+}
+
 rdpMetrics* metrics_new(rdpContext* context)
 {
 	rdpMetrics* metrics;

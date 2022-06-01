@@ -178,6 +178,7 @@ FREERDP_LOCAL void mcs_write_domain_mcspdu_header(wStream* s, DomainMCSPDU domai
                                                   UINT16 length, BYTE options);
 
 FREERDP_LOCAL BOOL mcs_client_begin(rdpMcs* mcs);
+FREERDP_LOCAL int mcs_initialize_client_channels(rdpMcs* mcs, const rdpSettings* settings);
 
 FREERDP_LOCAL rdpMcs* mcs_new(rdpTransport* transport);
 FREERDP_LOCAL void mcs_free(rdpMcs* mcs);

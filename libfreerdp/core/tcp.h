@@ -41,6 +41,7 @@
 #define BIO_TYPE_TSG 65
 #define BIO_TYPE_SIMPLE 66
 #define BIO_TYPE_BUFFERED 67
+#define BIO_TYPE_PCAP 68
 
 #define BIO_C_SET_SOCKET 1101
 #define BIO_C_GET_SOCKET 1102
@@ -50,6 +51,7 @@
 #define BIO_C_WRITE_BLOCKED 1106
 #define BIO_C_WAIT_READ 1107
 #define BIO_C_WAIT_WRITE 1108
+#define BIO_C_SET_RDP_CONTEXT 1200
 
 #define BIO_set_socket(b, s, c) BIO_ctrl(b, BIO_C_SET_SOCKET, c, s);
 #define BIO_get_socket(b, c) BIO_ctrl(b, BIO_C_GET_SOCKET, 0, (char*)c)
@@ -59,6 +61,8 @@
 #define BIO_write_blocked(b) BIO_ctrl(b, BIO_C_WRITE_BLOCKED, 0, NULL)
 #define BIO_wait_read(b, c) BIO_ctrl(b, BIO_C_WAIT_READ, c, NULL)
 #define BIO_wait_write(b, c) BIO_ctrl(b, BIO_C_WAIT_WRITE, c, NULL)
+
+BIO_METHOD* BIO_s_pcap(void);
 
 FREERDP_LOCAL BIO_METHOD* BIO_s_simple_socket(void);
 FREERDP_LOCAL BIO_METHOD* BIO_s_buffered_socket(void);

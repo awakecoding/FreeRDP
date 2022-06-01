@@ -739,6 +739,11 @@ typedef struct
 #define FreeRDP_TransportDumpFile (1861)
 #define FreeRDP_TransportDumpReplay (1862)
 #define FreeRDP_DeactivateClientDecoding (1863)
+#define FreeRDP_ExternalTransport (1864)
+#define FreeRDP_ExternalSecurity (1865)
+#define FreeRDP_PacketCaptureFile (1866)
+#define FreeRDP_PlayPacketCapture (1867)
+#define FreeRDP_SavePacketCapture (1868)
 #define FreeRDP_GatewayUsageMethod (1984)
 #define FreeRDP_GatewayPort (1985)
 #define FreeRDP_GatewayHostname (1986)
@@ -1272,7 +1277,12 @@ struct rdp_settings
 	ALIGN64 char* TransportDumpFile;       /* 1861 */
 	ALIGN64 BOOL TransportDumpReplay;      /* 1862 */
 	ALIGN64 BOOL DeactivateClientDecoding; /* 1863 */
-	UINT64 padding1920[1920 - 1864];       /* 1864 */
+	ALIGN64 BOOL ExternalTransport;        /* 1864 */
+	ALIGN64 BOOL ExternalSecurity;         /* 1865 */
+	ALIGN64 char* PacketCaptureFile;       /* 1866 */
+	ALIGN64 BOOL PlayPacketCapture;        /* 1867 */
+	ALIGN64 BOOL SavePacketCapture;        /* 1868 */
+	UINT64 padding1920[1920 - 1869];       /* 1869 */
 	UINT64 padding1984[1984 - 1920];       /* 1920 */
 
 	/**

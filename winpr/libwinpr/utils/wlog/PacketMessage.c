@@ -442,8 +442,8 @@ BOOL WLog_PacketMessage_Write(wPcap* pcap, void* data, size_t length, DWORD flag
 		ipv4.DestinationAddress = 0xC0A80196; /* 192.168.1.150 */
 	}
 
-	tcp.SourcePort = 3389;
-	tcp.DestinationPort = 3389;
+	tcp.SourcePort = 3390;
+	tcp.DestinationPort = 3390;
 
 	if (flags & WLOG_PACKET_OUTBOUND)
 	{

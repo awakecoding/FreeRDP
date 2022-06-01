@@ -28,6 +28,11 @@
 #include <freerdp/types.h>
 #include <freerdp/freerdp.h>
 
+#define CHANNEL_PACKET_COMPRESSED 0x00200000
+#define CHANNEL_PACKET_AT_FRONT 0x00400000
+#define CHANNEL_PACKET_FLUSHED 0x00800000
+#define CHANNEL_COMPR_TYPE_MASK 0x000F0000
+
 #ifdef __cplusplus
 extern "C"
 {

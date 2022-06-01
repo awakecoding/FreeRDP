@@ -107,6 +107,8 @@ FREERDP_LOCAL BOOL nego_read_request(rdpNego* nego, wStream* s);
 FREERDP_LOCAL BOOL nego_send_negotiation_request(rdpNego* nego);
 FREERDP_LOCAL BOOL nego_send_negotiation_response(rdpNego* nego);
 
+FREERDP_LOCAL BOOL nego_read_request_token_or_cookie(rdpNego* nego, wStream* s);
+
 FREERDP_LOCAL rdpNego* nego_new(rdpTransport* transport);
 FREERDP_LOCAL void nego_free(rdpNego* nego);
 

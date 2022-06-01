@@ -3169,6 +3169,19 @@ int freerdp_client_settings_parse_command_line_arguments(rdpSettings* settings, 
 
 			settings->PlayRemoteFx = TRUE;
 		}
+		CommandLineSwitchCase(arg, "pcap-file")
+		{
+			if (!freerdp_settings_set_string(settings, FreeRDP_PacketCaptureFile, arg->Value))
+				return COMMAND_LINE_ERROR_MEMORY;
+		}
+		CommandLineSwitchCase(arg, "pcap-play")
+		{
+			settings->PlayPacketCapture = enable;
+		}
+		CommandLineSwitchCase(arg, "pcap-save")
+		{
+			settings->SavePacketCapture = enable;
+		}
 		CommandLineSwitchCase(arg, "auth-only")
 		{
 			settings->AuthenticationOnly = enable;

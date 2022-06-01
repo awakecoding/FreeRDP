@@ -267,6 +267,10 @@ static BOOL transport_default_connect_tls(rdpTransport* transport)
 		tls->port = 3389;
 
 	tls->isGatewayTransport = FALSE;
+
+	if (settings->ExternalSecurity)
+		return TRUE;
+
 	tlsStatus = tls_connect(tls, transport->frontBio);
 
 	if (tlsStatus < 1)
@@ -413,6 +417,30 @@ BOOL transport_connect(rdpTransport* transport, const char* hostname, UINT16 por
 				transport->tsg = NULL;
 			}
 		}
+	}
+	else if (settings->ExternalTransport)
+	{
+		BIO* socketBio;
+		BIO* bufferedBio;
+
+		socketBio = BIO_new(BIO_s_pcap());
+
+		if (!socketBio)
+			return FALSE;
+
+		BIO_set_conn_hostname(socketBio, hostname);
+		BIO_ctrl(socketBio, BIO_C_SET_RDP_CONTEXT, 0, (void*)context);
+
+		bufferedBio = BIO_new(BIO_s_buffered_socket());
+
+		if (!bufferedBio)
+			return FALSE;
+
+		bufferedBio = BIO_push(bufferedBio, socketBio);
+
+		transport->frontBio = bufferedBio;
+
+		status = TRUE;
 	}
 	else
 	{

@@ -2104,12 +2104,17 @@ BOOL gcc_write_client_monitor_extended_data(wStream* s, const rdpMcs* mcs)
 BOOL gcc_read_client_message_channel_data(wStream* s, rdpMcs* mcs, UINT16 blockLength)
 {
 	UINT32 flags;
+	rdpContext* context = transport_get_context(mcs->transport);
+	rdpSettings* settings = context->settings;
 
 	if (blockLength < 4)
 		return FALSE;
 
 	Stream_Read_UINT32(s, flags);
-	mcs->messageChannelId = mcs->baseChannelId++;
+	
+	if (!settings->PlayPacketCapture)
+		mcs->messageChannelId = mcs->baseChannelId++;
+
 	return TRUE;
 }
 
