@@ -378,12 +378,13 @@ static LONG scard_reader_name_valid_w(SmartcardEmulationContext* smartcard, SCAR
  * Standard Windows Smart Card API
  */
 
-LONG WINAPI Emulate_SCardEstablishContext(SmartcardEmulationContext* smartcard, DWORD dwScope,
+LONG WINAPI Emulate_SCardEstablishContext(SCARDAPICONTEXT hSCardApi, DWORD dwScope,
                                           LPCVOID pvReserved1, LPCVOID pvReserved2,
                                           LPSCARDCONTEXT phContext)
 {
 	LONG status = SCARD_E_NO_MEMORY;
 	SCardContext* ctx;
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 
 	WINPR_ASSERT(smartcard);
 
@@ -417,10 +418,11 @@ LONG WINAPI Emulate_SCardEstablishContext(SmartcardEmulationContext* smartcard, 
 	return status;
 }
 
-LONG WINAPI Emulate_SCardReleaseContext(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext)
+LONG WINAPI Emulate_SCardReleaseContext(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext)
 {
 	LONG status;
 	SCardContext* value;
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 
 	WINPR_ASSERT(smartcard);
 
@@ -441,9 +443,10 @@ LONG WINAPI Emulate_SCardReleaseContext(SmartcardEmulationContext* smartcard, SC
 	return status;
 }
 
-LONG WINAPI Emulate_SCardIsValidContext(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext)
+LONG WINAPI Emulate_SCardIsValidContext(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext)
 {
 	LONG status;
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 
 	WINPR_ASSERT(smartcard);
 
@@ -466,11 +469,12 @@ LONG WINAPI Emulate_SCardIsValidContext(SmartcardEmulationContext* smartcard, SC
 	return status;
 }
 
-LONG WINAPI Emulate_SCardListReaderGroupsA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardListReaderGroupsA(SCARDAPICONTEXT hSCardApi,
                                            SCARDCONTEXT hContext, LPSTR mszGroups,
                                            LPDWORD pcchGroups)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardListReaderGroupsA { hContext: %p", (void*)hContext);
@@ -488,11 +492,12 @@ LONG WINAPI Emulate_SCardListReaderGroupsA(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardListReaderGroupsW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardListReaderGroupsW(SCARDAPICONTEXT hSCardApi,
                                            SCARDCONTEXT hContext, LPWSTR mszGroups,
                                            LPDWORD pcchGroups)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardListReaderGroupsW { hContext: %p", (void*)hContext);
@@ -510,10 +515,11 @@ LONG WINAPI Emulate_SCardListReaderGroupsW(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardListReadersA(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardListReadersA(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                       LPCSTR mszGroups, LPSTR mszReaders, LPDWORD pcchReaders)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 	if (!pcchReaders)
 		status = SCARD_E_INVALID_PARAMETER;
 
@@ -549,10 +555,11 @@ LONG WINAPI Emulate_SCardListReadersA(SmartcardEmulationContext* smartcard, SCAR
 	return status;
 }
 
-LONG WINAPI Emulate_SCardListReadersW(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardListReadersW(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                       LPCWSTR mszGroups, LPWSTR mszReaders, LPDWORD pcchReaders)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (!pcchReaders)
 		status = SCARD_E_INVALID_PARAMETER;
@@ -589,11 +596,12 @@ LONG WINAPI Emulate_SCardListReadersW(SmartcardEmulationContext* smartcard, SCAR
 	return status;
 }
 
-LONG WINAPI Emulate_SCardListCardsA(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardListCardsA(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                     LPCBYTE pbAtr, LPCGUID rgquidInterfaces,
                                     DWORD cguidInterfaceCount, CHAR* mszCards, LPDWORD pcchCards)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardListCardsA { hContext: %p",
 	           (void*)hContext);
@@ -614,11 +622,12 @@ LONG WINAPI Emulate_SCardListCardsA(SmartcardEmulationContext* smartcard, SCARDC
 	return status;
 }
 
-LONG WINAPI Emulate_SCardListCardsW(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardListCardsW(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                     LPCBYTE pbAtr, LPCGUID rgquidInterfaces,
                                     DWORD cguidInterfaceCount, WCHAR* mszCards, LPDWORD pcchCards)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardListCardsW { hContext: %p",
 	           (void*)hContext);
@@ -639,11 +648,12 @@ LONG WINAPI Emulate_SCardListCardsW(SmartcardEmulationContext* smartcard, SCARDC
 	return status;
 }
 
-LONG WINAPI Emulate_SCardListInterfacesA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardListInterfacesA(SCARDAPICONTEXT hSCardApi,
                                          SCARDCONTEXT hContext, LPCSTR szCard,
                                          LPGUID pguidInterfaces, LPDWORD pcguidInterfaces)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardListInterfacesA { hContext: %p",
 	           (void*)hContext);
@@ -662,11 +672,12 @@ LONG WINAPI Emulate_SCardListInterfacesA(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardListInterfacesW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardListInterfacesW(SCARDAPICONTEXT hSCardApi,
                                          SCARDCONTEXT hContext, LPCWSTR szCard,
                                          LPGUID pguidInterfaces, LPDWORD pcguidInterfaces)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardListInterfacesW { hContext: %p",
 	           (void*)hContext);
@@ -685,10 +696,11 @@ LONG WINAPI Emulate_SCardListInterfacesW(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetProviderIdA(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardGetProviderIdA(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                         LPCSTR szCard, LPGUID pguidProviderId)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardGetProviderIdA { hContext: %p",
 	           (void*)hContext);
@@ -706,10 +718,11 @@ LONG WINAPI Emulate_SCardGetProviderIdA(SmartcardEmulationContext* smartcard, SC
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetProviderIdW(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardGetProviderIdW(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                         LPCWSTR szCard, LPGUID pguidProviderId)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardGetProviderIdW { hContext: %p",
 	           (void*)hContext);
@@ -727,12 +740,13 @@ LONG WINAPI Emulate_SCardGetProviderIdW(SmartcardEmulationContext* smartcard, SC
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetCardTypeProviderNameA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardGetCardTypeProviderNameA(SCARDAPICONTEXT hSCardApi,
                                                   SCARDCONTEXT hContext, LPCSTR szCardName,
                                                   DWORD dwProviderId, CHAR* szProvider,
                                                   LPDWORD pcchProvider)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardGetCardTypeProviderNameA { hContext: %p", (void*)hContext);
@@ -752,12 +766,13 @@ LONG WINAPI Emulate_SCardGetCardTypeProviderNameA(SmartcardEmulationContext* sma
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetCardTypeProviderNameW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardGetCardTypeProviderNameW(SCARDAPICONTEXT hSCardApi,
                                                   SCARDCONTEXT hContext, LPCWSTR szCardName,
                                                   DWORD dwProviderId, WCHAR* szProvider,
                                                   LPDWORD pcchProvider)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardGetCardTypeProviderNameW { hContext: %p", (void*)hContext);
@@ -777,10 +792,11 @@ LONG WINAPI Emulate_SCardGetCardTypeProviderNameW(SmartcardEmulationContext* sma
 	return status;
 }
 
-LONG WINAPI Emulate_SCardIntroduceReaderGroupA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardIntroduceReaderGroupA(SCARDAPICONTEXT hSCardApi,
                                                SCARDCONTEXT hContext, LPCSTR szGroupName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardIntroduceReaderGroupA { hContext: %p", (void*)hContext);
@@ -797,10 +813,11 @@ LONG WINAPI Emulate_SCardIntroduceReaderGroupA(SmartcardEmulationContext* smartc
 	return status;
 }
 
-LONG WINAPI Emulate_SCardIntroduceReaderGroupW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardIntroduceReaderGroupW(SCARDAPICONTEXT hSCardApi,
                                                SCARDCONTEXT hContext, LPCWSTR szGroupName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardIntroduceReaderGroupW { hContext: %p", (void*)hContext);
@@ -817,10 +834,11 @@ LONG WINAPI Emulate_SCardIntroduceReaderGroupW(SmartcardEmulationContext* smartc
 	return status;
 }
 
-LONG WINAPI Emulate_SCardForgetReaderGroupA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardForgetReaderGroupA(SCARDAPICONTEXT hSCardApi,
                                             SCARDCONTEXT hContext, LPCSTR szGroupName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardForgetReaderGroupA { hContext: %p", (void*)hContext);
@@ -837,10 +855,11 @@ LONG WINAPI Emulate_SCardForgetReaderGroupA(SmartcardEmulationContext* smartcard
 	return status;
 }
 
-LONG WINAPI Emulate_SCardForgetReaderGroupW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardForgetReaderGroupW(SCARDAPICONTEXT hSCardApi,
                                             SCARDCONTEXT hContext, LPCWSTR szGroupName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardForgetReaderGroupW { hContext: %p", (void*)hContext);
@@ -857,11 +876,12 @@ LONG WINAPI Emulate_SCardForgetReaderGroupW(SmartcardEmulationContext* smartcard
 	return status;
 }
 
-LONG WINAPI Emulate_SCardIntroduceReaderA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardIntroduceReaderA(SCARDAPICONTEXT hSCardApi,
                                           SCARDCONTEXT hContext, LPCSTR szReaderName,
                                           LPCSTR szDeviceName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (status == SCARD_S_SUCCESS)
 		status = scard_reader_name_valid_a(smartcard, hContext, szReaderName);
@@ -881,11 +901,12 @@ LONG WINAPI Emulate_SCardIntroduceReaderA(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardIntroduceReaderW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardIntroduceReaderW(SCARDAPICONTEXT hSCardApi,
                                           SCARDCONTEXT hContext, LPCWSTR szReaderName,
                                           LPCWSTR szDeviceName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (status == SCARD_S_SUCCESS)
 		status = scard_reader_name_valid_w(smartcard, hContext, szReaderName);
@@ -905,10 +926,11 @@ LONG WINAPI Emulate_SCardIntroduceReaderW(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardForgetReaderA(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardForgetReaderA(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                        LPCSTR szReaderName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (status == SCARD_S_SUCCESS)
 		status = scard_reader_name_valid_a(smartcard, hContext, szReaderName);
@@ -926,10 +948,11 @@ LONG WINAPI Emulate_SCardForgetReaderA(SmartcardEmulationContext* smartcard, SCA
 	return status;
 }
 
-LONG WINAPI Emulate_SCardForgetReaderW(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardForgetReaderW(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                        LPCWSTR szReaderName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (status == SCARD_S_SUCCESS)
 		status = scard_reader_name_valid_w(smartcard, hContext, szReaderName);
@@ -947,11 +970,12 @@ LONG WINAPI Emulate_SCardForgetReaderW(SmartcardEmulationContext* smartcard, SCA
 	return status;
 }
 
-LONG WINAPI Emulate_SCardAddReaderToGroupA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardAddReaderToGroupA(SCARDAPICONTEXT hSCardApi,
                                            SCARDCONTEXT hContext, LPCSTR szReaderName,
                                            LPCSTR szGroupName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (status == SCARD_S_SUCCESS)
 		status = scard_reader_name_valid_a(smartcard, hContext, szReaderName);
@@ -971,11 +995,12 @@ LONG WINAPI Emulate_SCardAddReaderToGroupA(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardAddReaderToGroupW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardAddReaderToGroupW(SCARDAPICONTEXT hSCardApi,
                                            SCARDCONTEXT hContext, LPCWSTR szReaderName,
                                            LPCWSTR szGroupName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (status == SCARD_S_SUCCESS)
 		status = scard_reader_name_valid_w(smartcard, hContext, szReaderName);
@@ -995,11 +1020,12 @@ LONG WINAPI Emulate_SCardAddReaderToGroupW(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardRemoveReaderFromGroupA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardRemoveReaderFromGroupA(SCARDAPICONTEXT hSCardApi,
                                                 SCARDCONTEXT hContext, LPCSTR szReaderName,
                                                 LPCSTR szGroupName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (status == SCARD_S_SUCCESS)
 		status = scard_reader_name_valid_a(smartcard, hContext, szReaderName);
@@ -1019,11 +1045,12 @@ LONG WINAPI Emulate_SCardRemoveReaderFromGroupA(SmartcardEmulationContext* smart
 	return status;
 }
 
-LONG WINAPI Emulate_SCardRemoveReaderFromGroupW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardRemoveReaderFromGroupW(SCARDAPICONTEXT hSCardApi,
                                                 SCARDCONTEXT hContext, LPCWSTR szReaderName,
                                                 LPCWSTR szGroupName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (status == SCARD_S_SUCCESS)
 		status = scard_reader_name_valid_w(smartcard, hContext, szReaderName);
@@ -1043,13 +1070,14 @@ LONG WINAPI Emulate_SCardRemoveReaderFromGroupW(SmartcardEmulationContext* smart
 	return status;
 }
 
-LONG WINAPI Emulate_SCardIntroduceCardTypeA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardIntroduceCardTypeA(SCARDAPICONTEXT hSCardApi,
                                             SCARDCONTEXT hContext, LPCSTR szCardName,
                                             LPCGUID pguidPrimaryProvider, LPCGUID rgguidInterfaces,
                                             DWORD dwInterfaceCount, LPCBYTE pbAtr,
                                             LPCBYTE pbAtrMask, DWORD cbAtrLen)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardIntroduceCardTypeA { hContext: %p", (void*)hContext);
@@ -1072,13 +1100,14 @@ LONG WINAPI Emulate_SCardIntroduceCardTypeA(SmartcardEmulationContext* smartcard
 	return status;
 }
 
-LONG WINAPI Emulate_SCardIntroduceCardTypeW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardIntroduceCardTypeW(SCARDAPICONTEXT hSCardApi,
                                             SCARDCONTEXT hContext, LPCWSTR szCardName,
                                             LPCGUID pguidPrimaryProvider, LPCGUID rgguidInterfaces,
                                             DWORD dwInterfaceCount, LPCBYTE pbAtr,
                                             LPCBYTE pbAtrMask, DWORD cbAtrLen)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardIntroduceCardTypeW { hContext: %p", (void*)hContext);
@@ -1101,11 +1130,12 @@ LONG WINAPI Emulate_SCardIntroduceCardTypeW(SmartcardEmulationContext* smartcard
 	return status;
 }
 
-LONG WINAPI Emulate_SCardSetCardTypeProviderNameA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardSetCardTypeProviderNameA(SCARDAPICONTEXT hSCardApi,
                                                   SCARDCONTEXT hContext, LPCSTR szCardName,
                                                   DWORD dwProviderId, LPCSTR szProvider)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardSetCardTypeProviderNameA { hContext: %p", (void*)hContext);
@@ -1124,11 +1154,12 @@ LONG WINAPI Emulate_SCardSetCardTypeProviderNameA(SmartcardEmulationContext* sma
 	return status;
 }
 
-LONG WINAPI Emulate_SCardSetCardTypeProviderNameW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardSetCardTypeProviderNameW(SCARDAPICONTEXT hSCardApi,
                                                   SCARDCONTEXT hContext, LPCWSTR szCardName,
                                                   DWORD dwProviderId, LPCWSTR szProvider)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardSetCardTypeProviderNameA { hContext: %p", (void*)hContext);
@@ -1147,10 +1178,11 @@ LONG WINAPI Emulate_SCardSetCardTypeProviderNameW(SmartcardEmulationContext* sma
 	return status;
 }
 
-LONG WINAPI Emulate_SCardForgetCardTypeA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardForgetCardTypeA(SCARDAPICONTEXT hSCardApi,
                                          SCARDCONTEXT hContext, LPCSTR szCardName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardForgetCardTypeA { hContext: %p",
 	           (void*)hContext);
@@ -1167,10 +1199,11 @@ LONG WINAPI Emulate_SCardForgetCardTypeA(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardForgetCardTypeW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardForgetCardTypeW(SCARDAPICONTEXT hSCardApi,
                                          SCARDCONTEXT hContext, LPCWSTR szCardName)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardForgetCardTypeW { hContext: %p",
 	           (void*)hContext);
@@ -1187,10 +1220,11 @@ LONG WINAPI Emulate_SCardForgetCardTypeW(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardFreeMemory(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardFreeMemory(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                     LPVOID pvMem)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardFreeMemory { hContext: %p",
 	           (void*)hContext);
@@ -1210,9 +1244,10 @@ LONG WINAPI Emulate_SCardFreeMemory(SmartcardEmulationContext* smartcard, SCARDC
 	return status;
 }
 
-HANDLE WINAPI Emulate_SCardAccessStartedEvent(SmartcardEmulationContext* smartcard)
+HANDLE WINAPI Emulate_SCardAccessStartedEvent(SCARDAPICONTEXT hSCardApi)
 {
 	HANDLE hEvent;
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 
 	WINPR_ASSERT(smartcard);
 
@@ -1227,8 +1262,9 @@ HANDLE WINAPI Emulate_SCardAccessStartedEvent(SmartcardEmulationContext* smartca
 	return hEvent;
 }
 
-void WINAPI Emulate_SCardReleaseStartedEvent(SmartcardEmulationContext* smartcard)
+void WINAPI Emulate_SCardReleaseStartedEvent(SCARDAPICONTEXT hSCardApi)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	WINPR_ASSERT(smartcard);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardReleaseStartedEvent {");
@@ -1238,11 +1274,12 @@ void WINAPI Emulate_SCardReleaseStartedEvent(SmartcardEmulationContext* smartcar
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardReleaseStartedEvent }");
 }
 
-LONG WINAPI Emulate_SCardLocateCardsA(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardLocateCardsA(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                       LPCSTR mszCards, LPSCARD_READERSTATEA rgReaderStates,
                                       DWORD cReaders)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardLocateCardsA { hContext: %p",
 	           (void*)hContext);
@@ -1261,11 +1298,12 @@ LONG WINAPI Emulate_SCardLocateCardsA(SmartcardEmulationContext* smartcard, SCAR
 	return status;
 }
 
-LONG WINAPI Emulate_SCardLocateCardsW(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardLocateCardsW(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                       LPCWSTR mszCards, LPSCARD_READERSTATEW rgReaderStates,
                                       DWORD cReaders)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardLocateCardsW { hContext: %p",
 	           (void*)hContext);
@@ -1284,12 +1322,13 @@ LONG WINAPI Emulate_SCardLocateCardsW(SmartcardEmulationContext* smartcard, SCAR
 	return status;
 }
 
-LONG WINAPI Emulate_SCardLocateCardsByATRA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardLocateCardsByATRA(SCARDAPICONTEXT hSCardApi,
                                            SCARDCONTEXT hContext, LPSCARD_ATRMASK rgAtrMasks,
                                            DWORD cAtrs, LPSCARD_READERSTATEA rgReaderStates,
                                            DWORD cReaders)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardLocateCardsByATRA { hContext: %p", (void*)hContext);
@@ -1309,12 +1348,13 @@ LONG WINAPI Emulate_SCardLocateCardsByATRA(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardLocateCardsByATRW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardLocateCardsByATRW(SCARDAPICONTEXT hSCardApi,
                                            SCARDCONTEXT hContext, LPSCARD_ATRMASK rgAtrMasks,
                                            DWORD cAtrs, LPSCARD_READERSTATEW rgReaderStates,
                                            DWORD cReaders)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardLocateCardsByATRW { hContext: %p", (void*)hContext);
@@ -1334,11 +1374,12 @@ LONG WINAPI Emulate_SCardLocateCardsByATRW(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetStatusChangeA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardGetStatusChangeA(SCARDAPICONTEXT hSCardApi,
                                           SCARDCONTEXT hContext, DWORD dwTimeout,
                                           LPSCARD_READERSTATEA rgReaderStates, DWORD cReaders)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardGetStatusChangeA { hContext: %p",
 	           (void*)hContext);
@@ -1412,11 +1453,12 @@ LONG WINAPI Emulate_SCardGetStatusChangeA(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetStatusChangeW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardGetStatusChangeW(SCARDAPICONTEXT hSCardApi,
                                           SCARDCONTEXT hContext, DWORD dwTimeout,
                                           LPSCARD_READERSTATEW rgReaderStates, DWORD cReaders)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardGetStatusChangeW { hContext: %p",
 	           (void*)hContext);
@@ -1489,9 +1531,10 @@ LONG WINAPI Emulate_SCardGetStatusChangeW(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardCancel(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext)
+LONG WINAPI Emulate_SCardCancel(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardCancel { hContext: %p",
 	           (void*)hContext);
@@ -1535,17 +1578,18 @@ SCardHandle* find_reader(SmartcardEmulationContext* smartcard, const void* szRea
 	return hdl;
 }
 
-static SCardHandle* reader2handle(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+static SCardHandle* reader2handle(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                   const void* szReader, BOOL unicode, DWORD dwShareMode,
                                   SCARDHANDLE* phCard, DWORD dwPreferredProtocols,
                                   LPDWORD pdwActiveProtocol)
 {
 	SCardHandle* hdl;
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 
 	WINPR_ASSERT(phCard);
 
 	*phCard = 0;
-	if (Emulate_SCardIsValidContext(smartcard, hContext) != SCARD_S_SUCCESS)
+	if (Emulate_SCardIsValidContext(hSCardApi, hContext) != SCARD_S_SUCCESS)
 		return NULL;
 
 	hdl = scard_handle_new(smartcard, hContext, szReader, unicode);
@@ -1583,11 +1627,12 @@ static SCardHandle* reader2handle(SmartcardEmulationContext* smartcard, SCARDCON
 	return hdl;
 }
 
-LONG WINAPI Emulate_SCardConnectA(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardConnectA(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                   LPCSTR szReader, DWORD dwShareMode, DWORD dwPreferredProtocols,
                                   LPSCARDHANDLE phCard, LPDWORD pdwActiveProtocol)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (!phCard || !pdwActiveProtocol)
 		status = SCARD_E_INVALID_PARAMETER;
@@ -1597,7 +1642,7 @@ LONG WINAPI Emulate_SCardConnectA(SmartcardEmulationContext* smartcard, SCARDCON
 
 	if (status == SCARD_S_SUCCESS)
 	{
-		if (!reader2handle(smartcard, hContext, szReader, FALSE, dwShareMode, phCard,
+		if (!reader2handle(hSCardApi, hContext, szReader, FALSE, dwShareMode, phCard,
 		                   dwPreferredProtocols, pdwActiveProtocol))
 			status = SCARD_E_NO_MEMORY;
 	}
@@ -1608,11 +1653,12 @@ LONG WINAPI Emulate_SCardConnectA(SmartcardEmulationContext* smartcard, SCARDCON
 	return status;
 }
 
-LONG WINAPI Emulate_SCardConnectW(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardConnectW(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                   LPCWSTR szReader, DWORD dwShareMode, DWORD dwPreferredProtocols,
                                   LPSCARDHANDLE phCard, LPDWORD pdwActiveProtocol)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (!phCard || !pdwActiveProtocol)
 		status = SCARD_E_INVALID_PARAMETER;
@@ -1622,7 +1668,7 @@ LONG WINAPI Emulate_SCardConnectW(SmartcardEmulationContext* smartcard, SCARDCON
 
 	if (status == SCARD_S_SUCCESS)
 	{
-		if (!reader2handle(smartcard, hContext, szReader, TRUE, dwShareMode, phCard,
+		if (!reader2handle(hSCardApi, hContext, szReader, TRUE, dwShareMode, phCard,
 		                   dwPreferredProtocols, pdwActiveProtocol))
 			status = SCARD_E_NO_MEMORY;
 	}
@@ -1633,10 +1679,11 @@ LONG WINAPI Emulate_SCardConnectW(SmartcardEmulationContext* smartcard, SCARDCON
 	return status;
 }
 
-LONG WINAPI Emulate_SCardReconnect(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard,
+LONG WINAPI Emulate_SCardReconnect(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard,
                                    DWORD dwShareMode, DWORD dwPreferredProtocols,
                                    DWORD dwInitialization, LPDWORD pdwActiveProtocol)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	if (!pdwActiveProtocol)
@@ -1664,9 +1711,10 @@ LONG WINAPI Emulate_SCardReconnect(SmartcardEmulationContext* smartcard, SCARDHA
 	return status;
 }
 
-LONG WINAPI Emulate_SCardDisconnect(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard,
+LONG WINAPI Emulate_SCardDisconnect(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard,
                                     DWORD dwDisposition)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardDisconnect { hCard: %p",
@@ -1691,8 +1739,9 @@ LONG WINAPI Emulate_SCardDisconnect(SmartcardEmulationContext* smartcard, SCARDH
 	return status;
 }
 
-LONG WINAPI Emulate_SCardBeginTransaction(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard)
+LONG WINAPI Emulate_SCardBeginTransaction(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardBeginTransaction { hCard: %p",
@@ -1715,9 +1764,10 @@ LONG WINAPI Emulate_SCardBeginTransaction(SmartcardEmulationContext* smartcard, 
 	return status;
 }
 
-LONG WINAPI Emulate_SCardEndTransaction(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard,
+LONG WINAPI Emulate_SCardEndTransaction(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard,
                                         DWORD dwDisposition)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardEndTransaction { hCard: %p",
@@ -1742,8 +1792,9 @@ LONG WINAPI Emulate_SCardEndTransaction(SmartcardEmulationContext* smartcard, SC
 	return status;
 }
 
-LONG WINAPI Emulate_SCardCancelTransaction(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard)
+LONG WINAPI Emulate_SCardCancelTransaction(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardCancelTransaction { hCard: %p",
@@ -1766,10 +1817,11 @@ LONG WINAPI Emulate_SCardCancelTransaction(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardState(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard,
+LONG WINAPI Emulate_SCardState(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard,
                                LPDWORD pdwState, LPDWORD pdwProtocol, LPBYTE pbAtr,
                                LPDWORD pcbAtrLen)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	if (!pdwState || !pdwProtocol)
@@ -1825,10 +1877,11 @@ LONG WINAPI Emulate_SCardState(SmartcardEmulationContext* smartcard, SCARDHANDLE
 	return status;
 }
 
-LONG WINAPI Emulate_SCardStatusA(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard,
+LONG WINAPI Emulate_SCardStatusA(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard,
                                  LPSTR mszReaderNames, LPDWORD pcchReaderLen, LPDWORD pdwState,
                                  LPDWORD pdwProtocol, LPBYTE pbAtr, LPDWORD pcbAtrLen)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardStatusA { hCard: %p",
@@ -1875,10 +1928,11 @@ LONG WINAPI Emulate_SCardStatusA(SmartcardEmulationContext* smartcard, SCARDHAND
 	return status;
 }
 
-LONG WINAPI Emulate_SCardStatusW(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard,
+LONG WINAPI Emulate_SCardStatusW(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard,
                                  LPWSTR mszReaderNames, LPDWORD pcchReaderLen, LPDWORD pdwState,
                                  LPDWORD pdwProtocol, LPBYTE pbAtr, LPDWORD pcbAtrLen)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardStatusW { hCard: %p",
@@ -1924,11 +1978,12 @@ LONG WINAPI Emulate_SCardStatusW(SmartcardEmulationContext* smartcard, SCARDHAND
 	return status;
 }
 
-LONG WINAPI Emulate_SCardTransmit(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard,
+LONG WINAPI Emulate_SCardTransmit(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard,
                                   LPCSCARD_IO_REQUEST pioSendPci, LPCBYTE pbSendBuffer,
                                   DWORD cbSendLength, LPSCARD_IO_REQUEST pioRecvPci,
                                   LPBYTE pbRecvBuffer, LPDWORD pcbRecvLength)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	if (!pioSendPci || !pbSendBuffer || !pbRecvBuffer || !pcbRecvLength)
@@ -1970,9 +2025,10 @@ LONG WINAPI Emulate_SCardTransmit(SmartcardEmulationContext* smartcard, SCARDHAN
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetTransmitCount(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard,
+LONG WINAPI Emulate_SCardGetTransmitCount(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard,
                                           LPDWORD pcTransmitCount)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	if (!pcTransmitCount)
@@ -1996,10 +2052,11 @@ LONG WINAPI Emulate_SCardGetTransmitCount(SmartcardEmulationContext* smartcard, 
 	return status;
 }
 
-LONG WINAPI Emulate_SCardControl(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard,
+LONG WINAPI Emulate_SCardControl(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard,
                                  DWORD dwControlCode, LPCVOID lpInBuffer, DWORD cbInBufferSize,
                                  LPVOID lpOutBuffer, DWORD cbOutBufferSize, LPDWORD lpBytesReturned)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardControl { hCard: %p",
@@ -2024,9 +2081,10 @@ LONG WINAPI Emulate_SCardControl(SmartcardEmulationContext* smartcard, SCARDHAND
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetAttrib(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard,
+LONG WINAPI Emulate_SCardGetAttrib(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard,
                                    DWORD dwAttrId, LPBYTE pbAttr, LPDWORD pcbAttrLen)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardGetAttrib { hCard: %p",
@@ -2046,9 +2104,10 @@ LONG WINAPI Emulate_SCardGetAttrib(SmartcardEmulationContext* smartcard, SCARDHA
 	return status;
 }
 
-LONG WINAPI Emulate_SCardSetAttrib(SmartcardEmulationContext* smartcard, SCARDHANDLE hCard,
+LONG WINAPI Emulate_SCardSetAttrib(SCARDAPICONTEXT hSCardApi, SCARDHANDLE hCard,
                                    DWORD dwAttrId, LPCBYTE pbAttr, DWORD cbAttrLen)
 {
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 	LONG status = scard_handle_valid(smartcard, hCard);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level, "SCardSetAttrib { hCard: %p",
@@ -2068,10 +2127,11 @@ LONG WINAPI Emulate_SCardSetAttrib(SmartcardEmulationContext* smartcard, SCARDHA
 	return status;
 }
 
-LONG WINAPI Emulate_SCardUIDlgSelectCardA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardUIDlgSelectCardA(SCARDAPICONTEXT hSCardApi,
                                           LPOPENCARDNAMEA_EX pDlgStruc)
 {
 	LONG status;
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 
 	WINPR_ASSERT(smartcard);
 
@@ -2089,10 +2149,11 @@ LONG WINAPI Emulate_SCardUIDlgSelectCardA(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardUIDlgSelectCardW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardUIDlgSelectCardW(SCARDAPICONTEXT hSCardApi,
                                           LPOPENCARDNAMEW_EX pDlgStruc)
 {
 	LONG status;
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 
 	WINPR_ASSERT(smartcard);
 
@@ -2110,10 +2171,11 @@ LONG WINAPI Emulate_SCardUIDlgSelectCardW(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_GetOpenCardNameA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_GetOpenCardNameA(SCARDAPICONTEXT hSCardApi,
                                      LPOPENCARDNAMEA pDlgStruc)
 {
 	LONG status;
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 
 	WINPR_ASSERT(smartcard);
 
@@ -2131,10 +2193,11 @@ LONG WINAPI Emulate_GetOpenCardNameA(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_GetOpenCardNameW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_GetOpenCardNameW(SCARDAPICONTEXT hSCardApi,
                                      LPOPENCARDNAMEW pDlgStruc)
 {
 	LONG status;
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 
 	WINPR_ASSERT(smartcard);
 
@@ -2152,9 +2215,10 @@ LONG WINAPI Emulate_GetOpenCardNameW(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardDlgExtendedError(SmartcardEmulationContext* smartcard)
+LONG WINAPI Emulate_SCardDlgExtendedError(SCARDAPICONTEXT hSCardApi)
 {
 	LONG status;
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
 
 	WINPR_ASSERT(smartcard);
 
@@ -2170,12 +2234,13 @@ LONG WINAPI Emulate_SCardDlgExtendedError(SmartcardEmulationContext* smartcard)
 	return status;
 }
 
-LONG WINAPI Emulate_SCardReadCacheA(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardReadCacheA(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                     UUID* CardIdentifier, DWORD FreshnessCounter, LPSTR LookupName,
                                     PBYTE Data, DWORD* DataLen)
 {
 	DWORD count = 0;
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (!CardIdentifier || !DataLen)
 		status = SCARD_E_INVALID_PARAMETER;
@@ -2211,12 +2276,13 @@ LONG WINAPI Emulate_SCardReadCacheA(SmartcardEmulationContext* smartcard, SCARDC
 	return status;
 }
 
-LONG WINAPI Emulate_SCardReadCacheW(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardReadCacheW(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                     UUID* CardIdentifier, DWORD FreshnessCounter, LPWSTR LookupName,
                                     PBYTE Data, DWORD* DataLen)
 {
 	DWORD count = 0;
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (!CardIdentifier || !DataLen)
 		status = SCARD_E_INVALID_PARAMETER;
@@ -2290,11 +2356,12 @@ static BOOL insert_data(wHashTable* table, DWORD FreshnessCounter, const void* k
 	return SCARD_S_SUCCESS;
 }
 
-LONG WINAPI Emulate_SCardWriteCacheA(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardWriteCacheA(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                      UUID* CardIdentifier, DWORD FreshnessCounter, LPSTR LookupName,
                                      PBYTE Data, DWORD DataLen)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (!CardIdentifier)
 		status = SCARD_E_INVALID_PARAMETER;
@@ -2317,11 +2384,12 @@ LONG WINAPI Emulate_SCardWriteCacheA(SmartcardEmulationContext* smartcard, SCARD
 	return status;
 }
 
-LONG WINAPI Emulate_SCardWriteCacheW(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardWriteCacheW(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                      UUID* CardIdentifier, DWORD FreshnessCounter,
                                      LPWSTR LookupName, PBYTE Data, DWORD DataLen)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (!CardIdentifier)
 		status = SCARD_E_INVALID_PARAMETER;
@@ -2344,10 +2412,11 @@ LONG WINAPI Emulate_SCardWriteCacheW(SmartcardEmulationContext* smartcard, SCARD
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetReaderIconA(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardGetReaderIconA(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                         LPCSTR szReaderName, LPBYTE pbIcon, LPDWORD pcbIcon)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (!szReaderName || !pcbIcon)
 		status = SCARD_E_INVALID_PARAMETER;
@@ -2377,10 +2446,11 @@ LONG WINAPI Emulate_SCardGetReaderIconA(SmartcardEmulationContext* smartcard, SC
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetReaderIconW(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardGetReaderIconW(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                         LPCWSTR szReaderName, LPBYTE pbIcon, LPDWORD pcbIcon)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (!szReaderName || !pcbIcon)
 		status = SCARD_E_INVALID_PARAMETER;
@@ -2410,11 +2480,12 @@ LONG WINAPI Emulate_SCardGetReaderIconW(SmartcardEmulationContext* smartcard, SC
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetDeviceTypeIdA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardGetDeviceTypeIdA(SCARDAPICONTEXT hSCardApi,
                                           SCARDCONTEXT hContext, LPCSTR szReaderName,
                                           LPDWORD pdwDeviceTypeId)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (!pdwDeviceTypeId)
 		status = SCARD_E_INVALID_PARAMETER;
@@ -2437,11 +2508,12 @@ LONG WINAPI Emulate_SCardGetDeviceTypeIdA(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetDeviceTypeIdW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardGetDeviceTypeIdW(SCARDAPICONTEXT hSCardApi,
                                           SCARDCONTEXT hContext, LPCWSTR szReaderName,
                                           LPDWORD pdwDeviceTypeId)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (!pdwDeviceTypeId)
 		status = SCARD_E_INVALID_PARAMETER;
@@ -2464,12 +2536,13 @@ LONG WINAPI Emulate_SCardGetDeviceTypeIdW(SmartcardEmulationContext* smartcard,
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetReaderDeviceInstanceIdA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardGetReaderDeviceInstanceIdA(SCARDAPICONTEXT hSCardApi,
                                                     SCARDCONTEXT hContext, LPCSTR szReaderName,
                                                     LPSTR szDeviceInstanceId,
                                                     LPDWORD pcchDeviceInstanceId)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (status == SCARD_S_SUCCESS)
 		status = scard_reader_name_valid_a(smartcard, hContext, szReaderName);
@@ -2490,12 +2563,13 @@ LONG WINAPI Emulate_SCardGetReaderDeviceInstanceIdA(SmartcardEmulationContext* s
 	return status;
 }
 
-LONG WINAPI Emulate_SCardGetReaderDeviceInstanceIdW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardGetReaderDeviceInstanceIdW(SCARDAPICONTEXT hSCardApi,
                                                     SCARDCONTEXT hContext, LPCWSTR szReaderName,
                                                     LPWSTR szDeviceInstanceId,
                                                     LPDWORD pcchDeviceInstanceId)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	if (status == SCARD_S_SUCCESS)
 		status = scard_reader_name_valid_w(smartcard, hContext, szReaderName);
@@ -2516,12 +2590,13 @@ LONG WINAPI Emulate_SCardGetReaderDeviceInstanceIdW(SmartcardEmulationContext* s
 	return status;
 }
 
-LONG WINAPI Emulate_SCardListReadersWithDeviceInstanceIdA(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardListReadersWithDeviceInstanceIdA(SCARDAPICONTEXT hSCardApi,
                                                           SCARDCONTEXT hContext,
                                                           LPCSTR szDeviceInstanceId,
                                                           LPSTR mszReaders, LPDWORD pcchReaders)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardListReadersWithDeviceInstanceIdA { hContext: %p", (void*)hContext);
@@ -2540,12 +2615,13 @@ LONG WINAPI Emulate_SCardListReadersWithDeviceInstanceIdA(SmartcardEmulationCont
 	return status;
 }
 
-LONG WINAPI Emulate_SCardListReadersWithDeviceInstanceIdW(SmartcardEmulationContext* smartcard,
+LONG WINAPI Emulate_SCardListReadersWithDeviceInstanceIdW(SCARDAPICONTEXT hSCardApi,
                                                           SCARDCONTEXT hContext,
                                                           LPCWSTR szDeviceInstanceId,
                                                           LPWSTR mszReaders, LPDWORD pcchReaders)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WLog_Print(smartcard->log, smartcard->log_default_level,
 	           "SCardListReadersWithDeviceInstanceIdW { hContext: %p", (void*)hContext);
@@ -2564,10 +2640,11 @@ LONG WINAPI Emulate_SCardListReadersWithDeviceInstanceIdW(SmartcardEmulationCont
 	return status;
 }
 
-LONG WINAPI Emulate_SCardAudit(SmartcardEmulationContext* smartcard, SCARDCONTEXT hContext,
+LONG WINAPI Emulate_SCardAudit(SCARDAPICONTEXT hSCardApi, SCARDCONTEXT hContext,
                                DWORD dwEvent)
 {
-	LONG status = Emulate_SCardIsValidContext(smartcard, hContext);
+    SmartcardEmulationContext* smartcard = (SmartcardEmulationContext*) hSCardApi;
+	LONG status = Emulate_SCardIsValidContext(hSCardApi, hContext);
 
 	WINPR_UNUSED(dwEvent);
 
@@ -2705,4 +2782,91 @@ BOOL Emulate_IsConfigured(SmartcardEmulationContext* context)
 
 	context->configured = rc;
 	return rc;
+}
+
+static const SCardApiFunctionTableEx Emulate_SCardApiFunctionTableEx = {
+	0, /* dwVersion */
+	0, /* dwFlags */
+
+	Emulate_SCardEstablishContext,                 /* SCardEstablishContext */
+	Emulate_SCardReleaseContext,                   /* SCardReleaseContext */
+	Emulate_SCardIsValidContext,                   /* SCardIsValidContext */
+	Emulate_SCardListReaderGroupsA,                /* SCardListReaderGroupsA */
+	Emulate_SCardListReaderGroupsW,                /* SCardListReaderGroupsW */
+	Emulate_SCardListReadersA,                     /* SCardListReadersA */
+	Emulate_SCardListReadersW,                     /* SCardListReadersW */
+	Emulate_SCardListCardsA,                       /* SCardListCardsA */
+	Emulate_SCardListCardsW,                       /* SCardListCardsW */
+	Emulate_SCardListInterfacesA,                  /* SCardListInterfacesA */
+	Emulate_SCardListInterfacesW,                  /* SCardListInterfacesW */
+	Emulate_SCardGetProviderIdA,                   /* SCardGetProviderIdA */
+	Emulate_SCardGetProviderIdW,                   /* SCardGetProviderIdW */
+	Emulate_SCardGetCardTypeProviderNameA,         /* SCardGetCardTypeProviderNameA */
+	Emulate_SCardGetCardTypeProviderNameW,         /* SCardGetCardTypeProviderNameW */
+	Emulate_SCardIntroduceReaderGroupA,            /* SCardIntroduceReaderGroupA */
+	Emulate_SCardIntroduceReaderGroupW,            /* SCardIntroduceReaderGroupW */
+	Emulate_SCardForgetReaderGroupA,               /* SCardForgetReaderGroupA */
+	Emulate_SCardForgetReaderGroupW,               /* SCardForgetReaderGroupW */
+	Emulate_SCardIntroduceReaderA,                 /* SCardIntroduceReaderA */
+	Emulate_SCardIntroduceReaderW,                 /* SCardIntroduceReaderW */
+	Emulate_SCardForgetReaderA,                    /* SCardForgetReaderA */
+	Emulate_SCardForgetReaderW,                    /* SCardForgetReaderW */
+	Emulate_SCardAddReaderToGroupA,                /* SCardAddReaderToGroupA */
+	Emulate_SCardAddReaderToGroupW,                /* SCardAddReaderToGroupW */
+	Emulate_SCardRemoveReaderFromGroupA,           /* SCardRemoveReaderFromGroupA */
+	Emulate_SCardRemoveReaderFromGroupW,           /* SCardRemoveReaderFromGroupW */
+	Emulate_SCardIntroduceCardTypeA,               /* SCardIntroduceCardTypeA */
+	Emulate_SCardIntroduceCardTypeW,               /* SCardIntroduceCardTypeW */
+	Emulate_SCardSetCardTypeProviderNameA,         /* SCardSetCardTypeProviderNameA */
+	Emulate_SCardSetCardTypeProviderNameW,         /* SCardSetCardTypeProviderNameW */
+	Emulate_SCardForgetCardTypeA,                  /* SCardForgetCardTypeA */
+	Emulate_SCardForgetCardTypeW,                  /* SCardForgetCardTypeW */
+	Emulate_SCardFreeMemory,                       /* SCardFreeMemory */
+	Emulate_SCardAccessStartedEvent,               /* SCardAccessStartedEvent */
+	Emulate_SCardReleaseStartedEvent,              /* SCardReleaseStartedEvent */
+	Emulate_SCardLocateCardsA,                     /* SCardLocateCardsA */
+	Emulate_SCardLocateCardsW,                     /* SCardLocateCardsW */
+	Emulate_SCardLocateCardsByATRA,                /* SCardLocateCardsByATRA */
+	Emulate_SCardLocateCardsByATRW,                /* SCardLocateCardsByATRW */
+	Emulate_SCardGetStatusChangeA,                 /* SCardGetStatusChangeA */
+	Emulate_SCardGetStatusChangeW,                 /* SCardGetStatusChangeW */
+	Emulate_SCardCancel,                           /* SCardCancel */
+	Emulate_SCardConnectA,                         /* SCardConnectA */
+	Emulate_SCardConnectW,                         /* SCardConnectW */
+	Emulate_SCardReconnect,                        /* SCardReconnect */
+	Emulate_SCardDisconnect,                       /* SCardDisconnect */
+	Emulate_SCardBeginTransaction,                 /* SCardBeginTransaction */
+	Emulate_SCardEndTransaction,                   /* SCardEndTransaction */
+	Emulate_SCardCancelTransaction,                /* SCardCancelTransaction */
+	Emulate_SCardState,                            /* SCardState */
+	Emulate_SCardStatusA,                          /* SCardStatusA */
+	Emulate_SCardStatusW,                          /* SCardStatusW */
+	Emulate_SCardTransmit,                         /* SCardTransmit */
+	Emulate_SCardGetTransmitCount,                 /* SCardGetTransmitCount */
+	Emulate_SCardControl,                          /* SCardControl */
+	Emulate_SCardGetAttrib,                        /* SCardGetAttrib */
+	Emulate_SCardSetAttrib,                        /* SCardSetAttrib */
+	Emulate_SCardUIDlgSelectCardA,                 /* SCardUIDlgSelectCardA */
+	Emulate_SCardUIDlgSelectCardW,                 /* SCardUIDlgSelectCardW */
+	Emulate_GetOpenCardNameA,                      /* GetOpenCardNameA */
+	Emulate_GetOpenCardNameW,                      /* GetOpenCardNameW */
+	Emulate_SCardDlgExtendedError,                 /* SCardDlgExtendedError */
+	Emulate_SCardReadCacheA,                       /* SCardReadCacheA */
+	Emulate_SCardReadCacheW,                       /* SCardReadCacheW */
+	Emulate_SCardWriteCacheA,                      /* SCardWriteCacheA */
+	Emulate_SCardWriteCacheW,                      /* SCardWriteCacheW */
+	Emulate_SCardGetReaderIconA,                   /* SCardGetReaderIconA */
+	Emulate_SCardGetReaderIconW,                   /* SCardGetReaderIconW */
+	Emulate_SCardGetDeviceTypeIdA,                 /* SCardGetDeviceTypeIdA */
+	Emulate_SCardGetDeviceTypeIdW,                 /* SCardGetDeviceTypeIdW */
+	Emulate_SCardGetReaderDeviceInstanceIdA,       /* SCardGetReaderDeviceInstanceIdA */
+	Emulate_SCardGetReaderDeviceInstanceIdW,       /* SCardGetReaderDeviceInstanceIdW */
+	Emulate_SCardListReadersWithDeviceInstanceIdA, /* SCardListReadersWithDeviceInstanceIdA */
+	Emulate_SCardListReadersWithDeviceInstanceIdW, /* SCardListReadersWithDeviceInstanceIdW */
+	Emulate_SCardAudit                             /* SCardAudit */
+};
+
+const SCardApiFunctionTableEx* Emulate_GetSCardApiFunctionTableEx(void)
+{
+	return &Emulate_GetSCardApiFunctionTableEx;
 }

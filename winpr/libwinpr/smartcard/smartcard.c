@@ -587,6 +587,93 @@ WINSCARDAPI LONG WINAPI SCardAudit(SCARDCONTEXT hContext, DWORD dwEvent)
 	SCARDAPI_STUB_CALL_LONG(SCardAudit, hContext, dwEvent);
 }
 
+static const SCardApiFunctionTable WinPR_SCardApiFunctionTable = {
+	0, /* dwVersion */
+	0, /* dwFlags */
+
+	SCardEstablishContext,                 /* SCardEstablishContext */
+	SCardReleaseContext,                   /* SCardReleaseContext */
+	SCardIsValidContext,                   /* SCardIsValidContext */
+	SCardListReaderGroupsA,                /* SCardListReaderGroupsA */
+	SCardListReaderGroupsW,                /* SCardListReaderGroupsW */
+	SCardListReadersA,                     /* SCardListReadersA */
+	SCardListReadersW,                     /* SCardListReadersW */
+	SCardListCardsA,                       /* SCardListCardsA */
+	SCardListCardsW,                       /* SCardListCardsW */
+	SCardListInterfacesA,                  /* SCardListInterfacesA */
+	SCardListInterfacesW,                  /* SCardListInterfacesW */
+	SCardGetProviderIdA,                   /* SCardGetProviderIdA */
+	SCardGetProviderIdW,                   /* SCardGetProviderIdW */
+	SCardGetCardTypeProviderNameA,         /* SCardGetCardTypeProviderNameA */
+	SCardGetCardTypeProviderNameW,         /* SCardGetCardTypeProviderNameW */
+	SCardIntroduceReaderGroupA,            /* SCardIntroduceReaderGroupA */
+	SCardIntroduceReaderGroupW,            /* SCardIntroduceReaderGroupW */
+	SCardForgetReaderGroupA,               /* SCardForgetReaderGroupA */
+	SCardForgetReaderGroupW,               /* SCardForgetReaderGroupW */
+	SCardIntroduceReaderA,                 /* SCardIntroduceReaderA */
+	SCardIntroduceReaderW,                 /* SCardIntroduceReaderW */
+	SCardForgetReaderA,                    /* SCardForgetReaderA */
+	SCardForgetReaderW,                    /* SCardForgetReaderW */
+	SCardAddReaderToGroupA,                /* SCardAddReaderToGroupA */
+	SCardAddReaderToGroupW,                /* SCardAddReaderToGroupW */
+	SCardRemoveReaderFromGroupA,           /* SCardRemoveReaderFromGroupA */
+	SCardRemoveReaderFromGroupW,           /* SCardRemoveReaderFromGroupW */
+	SCardIntroduceCardTypeA,               /* SCardIntroduceCardTypeA */
+	SCardIntroduceCardTypeW,               /* SCardIntroduceCardTypeW */
+	SCardSetCardTypeProviderNameA,         /* SCardSetCardTypeProviderNameA */
+	SCardSetCardTypeProviderNameW,         /* SCardSetCardTypeProviderNameW */
+	SCardForgetCardTypeA,                  /* SCardForgetCardTypeA */
+	SCardForgetCardTypeW,                  /* SCardForgetCardTypeW */
+	SCardFreeMemory,                       /* SCardFreeMemory */
+	SCardAccessStartedEvent,               /* SCardAccessStartedEvent */
+	SCardReleaseStartedEvent,              /* SCardReleaseStartedEvent */
+	SCardLocateCardsA,                     /* SCardLocateCardsA */
+	SCardLocateCardsW,                     /* SCardLocateCardsW */
+	SCardLocateCardsByATRA,                /* SCardLocateCardsByATRA */
+	SCardLocateCardsByATRW,                /* SCardLocateCardsByATRW */
+	SCardGetStatusChangeA,                 /* SCardGetStatusChangeA */
+	SCardGetStatusChangeW,                 /* SCardGetStatusChangeW */
+	SCardCancel,                           /* SCardCancel */
+	SCardConnectA,                         /* SCardConnectA */
+	SCardConnectW,                         /* SCardConnectW */
+	SCardReconnect,                        /* SCardReconnect */
+	SCardDisconnect,                       /* SCardDisconnect */
+	SCardBeginTransaction,                 /* SCardBeginTransaction */
+	SCardEndTransaction,                   /* SCardEndTransaction */
+	SCardCancelTransaction,                /* SCardCancelTransaction */
+	SCardState,                            /* SCardState */
+	SCardStatusA,                          /* SCardStatusA */
+	SCardStatusW,                          /* SCardStatusW */
+	SCardTransmit,                         /* SCardTransmit */
+	SCardGetTransmitCount,                 /* SCardGetTransmitCount */
+	SCardControl,                          /* SCardControl */
+	SCardGetAttrib,                        /* SCardGetAttrib */
+	SCardSetAttrib,                        /* SCardSetAttrib */
+	SCardUIDlgSelectCardA,                 /* SCardUIDlgSelectCardA */
+	SCardUIDlgSelectCardW,                 /* SCardUIDlgSelectCardW */
+	GetOpenCardNameA,                      /* GetOpenCardNameA */
+	GetOpenCardNameW,                      /* GetOpenCardNameW */
+	SCardDlgExtendedError,                 /* SCardDlgExtendedError */
+	SCardReadCacheA,                       /* SCardReadCacheA */
+	SCardReadCacheW,                       /* SCardReadCacheW */
+	SCardWriteCacheA,                      /* SCardWriteCacheA */
+	SCardWriteCacheW,                      /* SCardWriteCacheW */
+	SCardGetReaderIconA,                   /* SCardGetReaderIconA */
+	SCardGetReaderIconW,                   /* SCardGetReaderIconW */
+	SCardGetDeviceTypeIdA,                 /* SCardGetDeviceTypeIdA */
+	SCardGetDeviceTypeIdW,                 /* SCardGetDeviceTypeIdW */
+	SCardGetReaderDeviceInstanceIdA,       /* SCardGetReaderDeviceInstanceIdA */
+	SCardGetReaderDeviceInstanceIdW,       /* SCardGetReaderDeviceInstanceIdW */
+	SCardListReadersWithDeviceInstanceIdA, /* SCardListReadersWithDeviceInstanceIdA */
+	SCardListReadersWithDeviceInstanceIdW, /* SCardListReadersWithDeviceInstanceIdW */
+	SCardAudit                             /* SCardAudit */
+};
+
+const SCardApiFunctionTable* WinPR_GetSCardApiFunctionTable(void)
+{
+	return &WinPR_GetSCardApiFunctionTable;
+}
+
 /**
  * Extended API
  */

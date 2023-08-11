@@ -25,6 +25,7 @@ option(WITH_SMARTCARD_PCSC "Enable smartcard PCSC backend" ON)
 
 
 set(${MODULE_PREFIX}_SRCS
+    smartcard_ex.c
 	smartcard.c
 	smartcard.h)
 
